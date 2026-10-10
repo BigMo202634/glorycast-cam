@@ -40,7 +40,9 @@ public class Sign {
                 .setInputApk(new File(a[3]))
                 .setOutputApk(new File(a[4]))
                 .setMinSdkVersion(24)
-                .setV1SigningEnabled(true)
+                // v2 only, as the Android build tools do for apps that start at Android 7.0;
+                // the old v1 jar signature also needs JDK parts that newer Java removed
+                .setV1SigningEnabled(false)
                 .setV2SigningEnabled(true)
                 .setCreatedBy("GloryCast")
                 .build()
@@ -54,6 +56,9 @@ public class Sign {
         for (byte b : sha) fp.append(String.format("%02X", b));
         System.out.println("verified=" + r.isVerified() + " v1=" + r.isVerifiedUsingV1Scheme()
                 + " v2=" + r.isVerifiedUsingV2Scheme() + " cert-sha256=" + fp);
-        if (!r.isVerified() || !r.isVerifiedUsingV2Scheme()) System.exit(1);
+        if (!r.isVerified() || !r.isVerifiedUsingV2Scheme()) {
+            new File(a[4]).delete();
+            System.exit(1);
+        }
     }
 }

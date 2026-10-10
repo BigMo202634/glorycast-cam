@@ -13,4 +13,6 @@ fi
 got=$(sha1sum "$jar" | cut -d' ' -f1)
 [ "$got" = "6ef7a58375aa68fb492b58edd97607bee8ee5c5c" ] || { echo "apksig download does not match the known copy" >&2; rm -f "$jar"; exit 1; }
 javac -d "$work" -cp "$jar" "$here/apksign/Sign.java"
-java -cp "$work:$jar" Sign "$3" "$4" glorycast-cam "$1" "$2"
+# apksig 2.3.0 touches JDK internals that newer Java keeps closed
+opens="--add-exports java.base/sun.security.x509=ALL-UNNAMED --add-exports java.base/sun.security.pkcs=ALL-UNNAMED --add-exports java.base/sun.security.util=ALL-UNNAMED"
+java $opens -cp "$work:$jar" Sign "$3" "$4" glorycast-cam "$1" "$2"

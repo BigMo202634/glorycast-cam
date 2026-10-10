@@ -6,6 +6,8 @@ WHAT YOU NEED
 - The media computer (the one running OBS or vMix) and the phones on the SAME Wi-Fi.
   The media computer can be on a cable to the same router.
 - Nothing to install on the phones. Any recent iPhone (Safari) or Android (Chrome).
+  Android phones can also use the GloryCast Cam app for a smoother picture (see
+  ANDROID APP below).
 - Sound is not sent from the phones. Keep using the mixer into OBS.
 
 START IT (WINDOWS)
@@ -25,6 +27,18 @@ ADD A PHONE
      iPhone Safari:  Show Details, then "visit this website", then Visit Website
 4. Type a camera name (Altar, Choir, Wide...), tap Start camera, allow the camera.
 5. Hold the phone sideways on a tripod. Plug in a charger for long services.
+
+ANDROID APP (SMOOTHER PICTURE)
+- Android phones can use the GloryCast Cam app instead of Chrome. It keeps the frame
+  rate steady in a dim church, uses the zoom lens when the phone has one, and keeps
+  sending when the screen turns off or someone opens another app.
+- Send "GloryCast-Cam.apk" from the "Android app" folder to the phone (WhatsApp or
+  a USB cable), tap it and allow "Install unknown apps" when Android asks.
+- Open GloryCast Cam on the phone, type a camera name, tap Start camera. It finds this
+  computer by itself on the same Wi-Fi; if it doesn't, type the address shown on the
+  GloryCast Cam page (for example 192.168.1.20).
+- Everything else works the same: OBS links, the live light and the camera cards.
+- A new app version installs over the old one; settings and the camera name stay.
 
 PUT A PHONE IN OBS
 1. On the GloryCast Cam page click "Copy OBS link" on the camera.
@@ -118,4 +132,5 @@ GOOD TO KNOW
 MAC
 - Install Node.js (LTS) from nodejs.org once, then open "Start GloryCast Cam (Mac).command".
 
-Ports used: 7795 (this computer and OBS), 7796 (phones, secure).
+Ports used: 7795 (this computer and OBS), 7796 (phones, secure), 7797 (the Android
+app finds this computer).

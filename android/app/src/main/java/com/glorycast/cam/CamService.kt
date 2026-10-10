@@ -50,7 +50,7 @@ class CamService : Service() {
         }
         val n = notification(intent?.getStringExtra(EXTRA_NAME) ?: "")
         try {
-            if (Build.VERSION.SDK_INT >= 29) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA)
+            if (Build.VERSION.SDK_INT >= 30) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA)
             else startForeground(1, n)
         } catch (e: Exception) {
             stopSelf()

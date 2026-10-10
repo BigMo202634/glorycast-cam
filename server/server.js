@@ -11,7 +11,7 @@ const { makeCert } = require("./cert");
 const HTTP_PORT = +process.env.GLORYCAST_CAM_PORT || 7795, HTTPS_PORT = HTTP_PORT + 1, FIND_PORT = HTTP_PORT + 2;
 const APP = path.join(__dirname, "..", "app");
 const DATA = process.env.GLORYCAST_CAM_DATA || path.join(os.homedir(), ".glorycast-cam");
-const VERSION = "1.3.0";
+const VERSION = "1.3.1";
 // changes whenever any page file changes, so pages left open in OBS reload to the new version
 const BUILD = (function () {
   const h = crypto.createHash("sha1");
