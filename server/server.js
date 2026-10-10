@@ -11,7 +11,7 @@ const { makeCert } = require("./cert");
 const HTTP_PORT = +process.env.GLORYCAST_CAM_PORT || 7795, HTTPS_PORT = HTTP_PORT + 1, FIND_PORT = HTTP_PORT + 2;
 const APP = path.join(__dirname, "..", "app");
 const DATA = process.env.GLORYCAST_CAM_DATA || path.join(os.homedir(), ".glorycast-cam");
-const VERSION = "1.3.1";
+const VERSION = "1.3.2";
 // changes whenever any page file changes, so pages left open in OBS reload to the new version
 const BUILD = (function () {
   const h = crypto.createHash("sha1");
@@ -175,6 +175,11 @@ function raw(req, max) {
   });
 }
 function json(res, code, obj) { res.writeHead(code, { "Content-Type": "application/json", "Cache-Control": "no-store" }); res.end(JSON.stringify(obj)); }
+// a page served on the church Wi-Fi or on this computer (GloryCast Switch), not a website out on the internet
+function lanOrigin(o) {
+  try { return /^(localhost|127(\.\d+){3}|10(\.\d+){3}|192\.168(\.\d+){2}|172\.(1[6-9]|2\d|3[01])(\.\d+){2}|169\.254(\.\d+){2}|\[::1\]|[a-z0-9-]+|[a-z0-9.-]+\.local)$/i.test(new URL(o).hostname); }
+  catch (e) { return false; }
+}
 
 let ctx = { ips: [], cert: null };
 function info() {
@@ -245,6 +250,16 @@ async function handle(req, res, secure) {
       return json(res, 200, { ok: true });
     }
     if (p === "/info") return json(res, 200, info());
+    if (p === "/cams") { // GloryCast Switch reads each phone's battery here, to warn the operator before one runs out
+      const origin = req.headers.origin, h = { "Content-Type": "application/json", "Cache-Control": "no-store", Vary: "Origin" };
+      if (lanOrigin(origin)) Object.assign(h, { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Private-Network": "true" });
+      if (req.method === "OPTIONS") { res.writeHead(204, Object.assign(h, { "Access-Control-Allow-Methods": "GET", "Access-Control-Max-Age": "600" })); return res.end(); }
+      res.writeHead(200, h);
+      return res.end(JSON.stringify({ app: "glorycast-cam", version: VERSION, cameras: cameras().map(x => {
+        const s = x.status || {};
+        return { cam: x.cam, name: x.name, online: x.online, battery: typeof s.battery === "number" ? s.battery : null, charging: !!s.charging };
+      }) }));
+    }
     if (p === "/cert") { // lets someone install the certificate if their phone insists
       res.writeHead(200, { "Content-Type": "application/x-x509-ca-cert", "Content-Disposition": "attachment; filename=GloryCast-Cam.crt" });
       return res.end(ctx.cert.cert);

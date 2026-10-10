@@ -19,6 +19,7 @@ async function until(fn, ms) { const end = Date.now() + (ms || 8000); while (Dat
   // phone: https with our own certificate (the user accepts it once on a real phone)
   const phoneCtx = await b.newContext({ ignoreHTTPSErrors: true, viewport: { width: 844, height: 390 }, permissions: ["camera"] });
   await phoneCtx.addInitScript(() => {
+    navigator.getBattery = () => Promise.resolve({ level: 0.15, charging: false }); // a phone running low
     window.__params = [];
     const sp = RTCRtpSender.prototype.setParameters;
     RTCRtpSender.prototype.setParameters = function (p) { try { window.__params.push(JSON.parse(JSON.stringify(p))); } catch (e) { /* ignore */ } return sp.apply(this, arguments); };
@@ -48,6 +49,21 @@ async function until(fn, ms) { const end = Date.now() + (ms || 8000); while (Dat
   await ctl.goto(`http://localhost:${PORT}/`);
   check("control page shows the phone address and QR", await until(async () => /https:\/\/.+:\d+\/phone/.test(await ctl.textContent("#phoneUrl")) && await ctl.$("#qr svg")));
   check("control page lists the Altar camera", await until(async () => /Altar/.test(await ctl.textContent("#cams"))));
+  // GloryCast Switch, opened from the church Wi-Fi, reads the batteries to warn its operator
+  const ask = (method, origin) => new Promise((ok, no) => {
+    const r = require("http").request({ host: "127.0.0.1", port: PORT, path: "/cams", method, headers: { Origin: origin } }, x => {
+      let s = ""; x.on("data", d => { s += d; }); x.on("end", () => ok({ status: x.statusCode, headers: x.headers, body: s }));
+    });
+    r.on("error", no); r.end();
+  });
+  const lan = "http://192.168.1.20:7790";
+  const cams = await until(async () => { const r = await ask("GET", lan), c = JSON.parse(r.body).cameras.find(x => x.cam === "altar"); return c && c.battery != null && { r, c }; });
+  check("Switch can read each phone's battery from the media computer", cams && cams.c.name === "Altar" && cams.c.online && cams.c.battery === 15 && cams.c.charging === false &&
+    cams.r.headers["access-control-allow-origin"] === lan, cams && JSON.stringify(cams.c));
+  const pre = await ask("OPTIONS", lan);
+  check("and the browser's permission check passes", pre.status === 204 && pre.headers["access-control-allow-private-network"] === "true" && pre.headers["access-control-allow-origin"] === lan);
+  check("a website out on the internet cannot read them", !(await ask("GET", "https://example.com")).headers["access-control-allow-origin"]);
+  check("media computer page shows the low battery", await until(async () => /Battery 15%/.test(await ctl.textContent("#cams"))));
   check("small picture plays on the control page", await until(() => ctl.frames().find(f => /kind=preview/.test(f.url())).evaluate(() => document.getElementById("video").videoWidth > 0), 12000));
 
   // OBS browser source

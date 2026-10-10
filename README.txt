@@ -74,6 +74,15 @@ LIVE LIGHT ON THE PHONE (OBS)
   Mode Preview can show red until it has gone live once. Cameras that are not on
   screen anywhere show green straight away.
 
+LOW BATTERY WARNING ON GLORYCAST SWITCH
+- When a camera phone gets to 20% and is not charging, GloryCast Switch shows a
+  warning across the top and a battery mark on that camera's channel, so the person
+  switching can tell the camera person to plug in. It warns again in red at 10% and
+  at 5%, and clears once the phone is charging.
+- Works for Android phones (the GloryCast Cam app or Chrome). iPhones in Safari do
+  not share their battery level.
+- Nothing to set up: Switch finds the phones in OBS by itself while this window is open.
+
 SMOOTH PICTURE
 - Every camera card on the GloryCast Cam page shows the picture size and frames per
   second arriving in OBS, the codec, and how many frames the phone's camera makes.
