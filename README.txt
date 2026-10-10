@@ -18,6 +18,20 @@ START IT (WINDOWS)
 4. A black window opens (leave it open during service) and the GloryCast Cam page
    opens in your browser with a QR code.
 
+START IT (MAC)
+1. Install Node.js once: nodejs.org, the LTS version.
+2. Unzip the GloryCast-Cam folder and drag "GloryCast Cam" (the app with the GloryCast
+   icon) into your Applications folder. Open it from there, from Launchpad or the Dock.
+3. FIRST TIME ONLY the Mac may say it cannot check the app. Right-click GloryCast Cam,
+   choose Open, then Open again. On macOS 15 or later: open it once, then go to System
+   Settings, Privacy & Security, and click "Open Anyway" near the bottom.
+   If the Mac offers to install Rosetta, click Install. If it asks whether "node" may
+   accept incoming network connections, click Allow (phones need this).
+4. GloryCast Cam starts quietly, with no Terminal window, and its page opens in your
+   browser with a QR code. Opening the app again while it runs just opens the page.
+5. To stop it, click Stop at the top of the GloryCast Cam page on this computer.
+   ("Start GloryCast Cam (Mac).command" still starts it the old way, in a Terminal window.)
+
 ADD A PHONE
 1. Connect the phone to the church Wi-Fi.
 2. Scan the QR code on the GloryCast Cam page with the phone's camera.
@@ -137,9 +151,6 @@ GOOD TO KNOW
 - The address can change if the computer gets a new address from the router. Scan the new
   QR code; OBS links use "localhost" so they never change.
 - No internet is needed. Nothing leaves your Wi-Fi.
-
-MAC
-- Install Node.js (LTS) from nodejs.org once, then open "Start GloryCast Cam (Mac).command".
 
 Ports used: 7795 (this computer and OBS), 7796 (phones, secure), 7797 (the Android
 app finds this computer).

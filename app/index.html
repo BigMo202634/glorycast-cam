@@ -74,6 +74,7 @@
   <span class="t">GloryCast <b>Cam</b></span>
   <span class="sp"></span>
   <span class="ok" id="conn"><i></i><span id="connText">Running</span></span>
+  <button class="btn" id="stopBtn" type="button" hidden>Stop</button>
 </header>
 
 <main>
@@ -246,11 +247,20 @@
   $("previews").onchange = function () { store.set("previews", this.checked ? "1" : "0"); render(last); };
   $("preCopy").onclick = function () { var n = $("preName").value.trim(); if (!n) { $("preName").focus(); return; } copy(obsLink(slug(n)), "OBS link for " + n); };
 
+  // Stop, on this computer only: the Mac app runs GloryCast Cam without a window to close
+  var here = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname), stopped = false;
+  function stoppedText() { $("conn").classList.add("down"); $("connText").textContent = "Stopped. Open GloryCast Cam to start it again."; }
+  $("stopBtn").onclick = function () {
+    if (!confirm("Stop GloryCast Cam? The phones stop sending to OBS until you open GloryCast Cam again.")) return;
+    stopped = true; $("stopBtn").hidden = true; stoppedText();
+    fetch("/quit", { method: "POST" }).catch(function () {});
+  };
+
   GCSignal.connect({ role: "control" }, {
     hello: function (m) { INFO = m.info; fillIps(); drawJoin(); },
     state: function (m) { render(m.cameras || []); },
-    up: function () { $("conn").classList.remove("down"); $("connText").textContent = "Running"; },
-    down: function () { $("conn").classList.add("down"); $("connText").textContent = "Not running: start GloryCast Cam on this computer"; }
+    up: function () { stopped = false; $("stopBtn").hidden = !here; $("conn").classList.remove("down"); $("connText").textContent = "Running"; },
+    down: function () { if (stopped) return stoppedText(); $("conn").classList.add("down"); $("connText").textContent = "Not running: start GloryCast Cam on this computer"; }
   });
 })();
 </script>

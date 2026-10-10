@@ -11,7 +11,7 @@ const { makeCert } = require("./cert");
 const HTTP_PORT = +process.env.GLORYCAST_CAM_PORT || 7795, HTTPS_PORT = HTTP_PORT + 1, FIND_PORT = HTTP_PORT + 2;
 const APP = path.join(__dirname, "..", "app");
 const DATA = process.env.GLORYCAST_CAM_DATA || path.join(os.homedir(), ".glorycast-cam");
-const VERSION = "1.3.2";
+const VERSION = "1.3.3";
 // changes whenever any page file changes, so pages left open in OBS reload to the new version
 const BUILD = (function () {
   const h = crypto.createHash("sha1");
@@ -250,6 +250,13 @@ async function handle(req, res, secure) {
       return json(res, 200, { ok: true });
     }
     if (p === "/info") return json(res, 200, info());
+    if (req.method === "POST" && p === "/quit") { // Stop on this computer's page, or a newer GloryCast Cam taking over
+      const o = req.headers.origin; // a website cannot stop it from this computer's browser
+      if (!isLocal(req) || (o && !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(o))) return json(res, 403, { error: "only from this computer" });
+      json(res, 200, { ok: true });
+      console.log("\n  GloryCast Cam was stopped.\n");
+      return setTimeout(() => process.exit(0), 300);
+    }
     if (p === "/cams") { // GloryCast Switch reads each phone's battery here, to warn the operator before one runs out
       const origin = req.headers.origin, h = { "Content-Type": "application/json", "Cache-Control": "no-store", Vary: "Origin" };
       if (lanOrigin(origin)) Object.assign(h, { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Private-Network": "true" });
@@ -347,5 +354,41 @@ function openBrowser(u) {
   exec(cmd, () => {});
 }
 
-if (require.main === module) start();
+
+// The Mac app starts GloryCast Cam with --app: it runs in the background (no Terminal window) and its
+// page opens. Opening the app again just opens the page; a different version is asked to stop first.
+function startForApp() {
+  const ask = (method, p) => new Promise(done => {
+    const r = http.request({ host: "127.0.0.1", port: HTTP_PORT, path: p, method, agent: false, timeout: 2000 }, res => {
+      let s = ""; res.on("data", d => { s += d; });
+      res.on("end", () => { try { done(JSON.parse(s)); } catch (e) { done({}); } });
+    });
+    r.on("timeout", () => r.destroy()); r.on("error", () => done(null)); r.end();
+  });
+  const until = async (ok, ms) => {
+    const end = Date.now() + ms; let v = null;
+    while (Date.now() < end) { v = await ask("GET", "/info"); if (ok(v)) break; await new Promise(r => setTimeout(r, 250)); }
+    return v;
+  };
+  const fail = msg => { console.log(msg); process.exitCode = 2; };
+  (async () => {
+    let now = await ask("GET", "/info");
+    if (now && now.version !== VERSION) {
+      if (!now.version) return fail("Another program on this computer is using port " + HTTP_PORT + ". Close it, then open GloryCast Cam again.");
+      await ask("POST", "/quit");
+      now = await until(v => !v, 8000);
+      if (now) return fail("An older GloryCast Cam (" + now.version + ") is still running, probably in a Terminal window. Close that window, then open GloryCast Cam again.");
+    }
+    if (!now) {
+      fs.mkdirSync(DATA, { recursive: true });
+      const logFile = path.join(DATA, "server.log"), log = fs.openSync(logFile, "w");
+      require("child_process").spawn(process.execPath, [__filename], { detached: true, stdio: ["ignore", log, log], cwd: os.homedir() }).unref();
+      fs.closeSync(log);
+      now = await until(v => v && v.version === VERSION, 20000);
+      if (!now || now.version !== VERSION) return fail("GloryCast Cam could not start. The details are in " + logFile);
+    }
+    openBrowser("http://localhost:" + HTTP_PORT + "/");
+  })();
+}
+if (require.main === module) { if (process.argv.includes("--app")) startForApp(); else start(); }
 module.exports = { start, lanIPs, slug, clients };

@@ -1,0 +1,40 @@
+#!/bin/bash
+# GloryCast Cam for Mac: starts the media computer in the background (no Terminal window)
+# and opens its page in the web browser. Opening it again while it runs just opens the page.
+# Stop it with the Stop button on that page.
+res="$(cd "$(dirname "$0")/../Resources" && pwd)"
+
+alert() { # message, optional second button
+  /usr/bin/osascript - "$1" "$2" >/dev/null 2>&1 <<'APPLESCRIPT'
+on run argv
+  set btns to {"OK"}
+  if item 2 of argv is not "" then set btns to {item 2 of argv, "OK"}
+  activate
+  set r to display dialog (item 1 of argv) with title "GloryCast Cam" buttons btns default button "OK" with icon caution
+  if button returned of r is "Get Node.js" then open location "https://nodejs.org/"
+end run
+APPLESCRIPT
+}
+
+# Opened straight from Downloads, macOS runs a hidden copy that can stop working mid-service.
+case "$0" in
+  */AppTranslocation/*)
+    alert "Please drag GloryCast Cam into your Applications folder, then open it from there." ""
+    exit 0 ;;
+esac
+
+# Apps opened from Finder do not get the Terminal's search path, so look where Node.js installers put it.
+node=""
+for n in /usr/local/bin/node /opt/homebrew/bin/node /opt/local/bin/node "$HOME/.volta/bin/node"; do
+  if [ -x "$n" ]; then node="$n"; break; fi
+done
+if [ -z "$node" ]; then node="$(ls -d "$HOME"/.nvm/versions/node/v*/bin/node 2>/dev/null | tail -n 1)"; fi
+if [ ! -x "$node" ]; then node="$(/bin/zsh -lc 'command -v node' </dev/null 2>/dev/null | tail -n 1)"; fi
+if [ ! -x "$node" ]; then node="$(/bin/zsh -ic 'command -v node' </dev/null 2>/dev/null | tail -n 1)"; fi
+if [ ! -x "$node" ]; then
+  alert "GloryCast Cam needs Node.js on this Mac (free). Install the LTS version from nodejs.org, then open GloryCast Cam again." "Get Node.js"
+  exit 0
+fi
+
+msg="$("$node" "$res/server/server.js" --app 2>&1)" || alert "$msg" ""
+exit 0
