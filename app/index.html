@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="img/icon.svg">
+<title>GloryCast Cam</title>
+<style>
+  @font-face { font-family: "Montserrat"; src: url("fonts/Montserrat-VF.ttf") format("truetype"); font-weight: 100 900; }
+  :root { --navy: #0F1E3D; --navy-2: #172A50; --navy-3: #22396A; --line: #2C4475; --gold: #C9A227; --text: #EEF2FA; --muted: #9BA9C6;
+          --live: #E5383B; --next: #2FBF71; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--navy); color: var(--text); font-family: "Montserrat", system-ui, sans-serif; }
+  button, input, select { font: inherit; color: inherit; }
+  [hidden] { display: none !important; }
+  header { display: flex; align-items: center; gap: 12px; padding: 14px 24px; border-bottom: 1px solid var(--line); }
+  header img { width: 34px; height: 34px; border-radius: 8px; }
+  header .t { font-weight: 800; font-size: 19px; }
+  header .t b { color: var(--gold); }
+  header .sp { flex: 1; }
+  .ok { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  .ok i { width: 9px; height: 9px; border-radius: 50%; background: var(--next); display: inline-block; }
+  .ok.down i { background: var(--live); }
+  main { display: grid; grid-template-columns: 330px 1fr; gap: 24px; padding: 24px; align-items: start; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .panel { background: var(--navy-2); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: grid; gap: 14px; min-width: 0; }
+  h2 { font-size: 16px; margin: 0; letter-spacing: .01em; }
+  p, li { color: var(--muted); font-size: 13.5px; line-height: 1.55; margin: 0; }
+  ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+  li b { color: var(--text); font-weight: 600; }
+  #qr { background: #fff; border-radius: 12px; padding: 14px; width: 100%; max-width: 290px; aspect-ratio: 1; justify-self: center; }
+  #qr svg, #qr img { width: 100%; height: 100%; display: block; }
+  .addr { font-family: ui-monospace, Consolas, monospace; font-size: 14px; background: var(--navy); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; overflow-wrap: anywhere; color: var(--gold); text-align: center; }
+  select, input { background: var(--navy); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 14px; width: 100%; }
+  label { display: grid; gap: 6px; font-size: 12.5px; color: var(--muted); font-weight: 600; }
+  .cams-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .cams-head .sp { flex: 1; }
+  .switch { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+  .switch input { width: auto; accent-color: var(--gold); }
+  #cams { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+  .cam { background: var(--navy); border: 2px solid var(--line); border-radius: 12px; overflow: hidden; display: grid; min-width: 0; }
+  .cam.live { border-color: var(--live); }
+  .cam.standby { border-color: var(--next); }
+  .shot { position: relative; aspect-ratio: 16 / 9; background: #000; }
+  .shot iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; }
+  .shot .off { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 13px; }
+  .tag { position: absolute; top: 8px; left: 8px; font-size: 11px; font-weight: 800; letter-spacing: .08em; padding: 3px 8px; border-radius: 6px; background: rgba(0,0,0,.6); }
+  .cam.live .tag { background: var(--live); }
+  .cam.standby .tag { background: var(--next); }
+  .info { padding: 12px 14px; display: grid; gap: 8px; }
+  .name { font-weight: 700; font-size: 15px; display: flex; gap: 8px; align-items: baseline; }
+  .name small { color: var(--muted); font-weight: 500; font-size: 12px; margin-left: auto; white-space: nowrap; }
+  .facts { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 12px; }
+  .facts .warn { color: #ffb4a8; }
+  .alert { font-size: 12.5px; line-height: 1.5; color: #ffd9d2; background: rgba(229,56,59,.12); border: 1px solid rgba(229,56,59,.45); border-radius: 8px; padding: 8px 10px; }
+  .alert b { color: #fff; font-weight: 700; }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn { background: var(--navy-3); border: 1px solid var(--line); border-radius: 8px; padding: 7px 11px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+  .btn:hover { border-color: var(--gold); }
+  .btn.gold { background: var(--gold); color: var(--navy); border-color: var(--gold); }
+  .btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .empty { border: 1px dashed var(--line); border-radius: 12px; padding: 36px 20px; text-align: center; color: var(--muted); font-size: 14px; line-height: 1.6; }
+  .help { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .help .panel { background: transparent; }
+  code { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; color: var(--gold); overflow-wrap: anywhere; }
+  .linkrow { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+  #toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--gold); color: var(--navy); font-weight: 700; font-size: 14px; padding: 10px 18px; border-radius: 10px; }
+  .right { display: grid; gap: 24px; min-width: 0; }
+</style>
+</head>
+<body>
+<header>
+  <img src="img/icon-180.png" alt="">
+  <span class="t">GloryCast <b>Cam</b></span>
+  <span class="sp"></span>
+  <span class="ok" id="conn"><i></i><span id="connText">Running</span></span>
+</header>
+
+<main>
+  <section class="panel" aria-labelledby="addH">
+    <h2 id="addH">Add a phone camera</h2>
+    <div id="qr" role="img" aria-label="QR code for the camera page"></div>
+    <div class="addr" id="phoneUrl">…</div>
+    <label for="ipPick" id="ipWrap" hidden>This computer's address on the church Wi-Fi
+      <select id="ipPick"></select>
+    </label>
+    <ol>
+      <li>Put the phone on the <b>same Wi-Fi</b> as this computer.</li>
+      <li>Scan the code with the phone camera, or type the address.</li>
+      <li>First time only, the phone warns the link is not private. It is your own computer, so tap <b>Advanced → Proceed</b> (Android) or <b>Show Details → visit this website</b> (iPhone).</li>
+      <li>Name the camera, tap <b>Start camera</b> and allow the camera.</li>
+    </ol>
+  </section>
+
+  <div class="right">
+    <section class="panel" aria-labelledby="camsH">
+      <div class="cams-head">
+        <h2 id="camsH">Cameras</h2>
+        <span class="sp"></span>
+        <label class="switch" for="previews"><input type="checkbox" id="previews" checked> Show small pictures here</label>
+      </div>
+      <div id="cams"></div>
+      <div class="empty" id="empty">No phones yet.<br>Scan the code on the left with a phone to add the first camera.</div>
+    </section>
+
+    <section class="help">
+      <div class="panel">
+        <h2>Put a phone in OBS</h2>
+        <ol>
+          <li>Click <b>Copy OBS link</b> on the camera.</li>
+          <li>In OBS, Sources <b>+</b> → <b>Browser</b>, name it after the camera.</li>
+          <li>Paste the link into <b>URL</b>, set Width <b>1920</b> and Height <b>1080</b>.</li>
+          <li>Leave <b>Shutdown source when not visible</b> and <b>Refresh browser when scene becomes active</b> unticked. Click OK.</li>
+        </ol>
+        <p>Same phone in another scene: Sources <b>+</b> → <b>Browser</b> → <b>Add Existing</b>. One source per phone.</p>
+        <p>The phone shows a red frame when its camera is on Program (live) and a green frame when it is not.</p>
+      </div>
+      <div class="panel">
+        <h2>Put a phone in vMix</h2>
+        <ol>
+          <li>Click <b>Copy vMix link</b> on the camera.</li>
+          <li>In vMix, <b>Add Input</b> → <b>Web Browser</b>, paste the link.</li>
+          <li>Set the size to <b>1920 × 1080</b>.</li>
+        </ol>
+        <p>vMix shows the picture. The red/green light on the phone works with OBS for now.</p>
+      </div>
+      <div class="panel">
+        <h2>Set up OBS before the phones arrive</h2>
+        <div class="linkrow">
+          <label for="preName">Camera name<input id="preName" placeholder="Altar"></label>
+          <button class="btn gold" id="preCopy" type="button">Copy OBS link</button>
+        </div>
+        <p>Use the same name on the phone and it will appear in that source by itself every Sunday.</p>
+      </div>
+    </section>
+  </div>
+</main>
+<div id="toast" hidden></div>
+
+<script src="js/qrcode.js"></script>
+<script src="js/signal.js"></script>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var INFO = null, tiles = {}, pickedIp = null;
+  var store = {
+    get: function (k, d) { try { var v = localStorage.getItem("gccam." + k); return v === null ? d : v; } catch (e) { return d; } },
+    set: function (k, v) { try { localStorage.setItem("gccam." + k, v); } catch (e) { /* private mode */ } }
+  };
+  $("previews").checked = store.get("previews", "1") === "1";
+
+  function slug(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 30) || "camera"; }
+  function toast(t) { var el = $("toast"); el.textContent = t; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(function () { el.hidden = true; }, 2200); }
+  function copy(text, label) {
+    var done = function () { toast(label + " copied"); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
+    function fallback() { var ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); done(); } catch (e) { prompt("Copy this link", text); } ta.remove(); }
+  }
+  function ip() { return pickedIp || (INFO && INFO.ip) || location.hostname; }
+  function phoneUrl() { return "https://" + ip() + ":" + INFO.httpsPort + "/phone"; }
+  function obsLink(cam) { return "http://localhost:" + INFO.httpPort + "/view?cam=" + encodeURIComponent(cam); }
+  function vmixLink(cam) { return "http://" + ip() + ":" + INFO.httpPort + "/view?cam=" + encodeURIComponent(cam); }
+
+  function drawJoin() {
+    var url = phoneUrl();
+    $("phoneUrl").textContent = url;
+    var q = qrcode(0, "M"); q.addData(url); q.make();
+    $("qr").innerHTML = q.createSvgTag({ cellSize: 6, margin: 0, scalable: true });
+  }
+  function fillIps() {
+    var list = INFO.ips || [];
+    $("ipWrap").hidden = list.length < 2;
+    $("ipPick").innerHTML = list.map(function (x) { return '<option value="' + x.ip + '">' + x.ip + " (" + x.name.replace(/[<&"]/g, "") + ")</option>"; }).join("");
+    var want = store.get("ip", "");
+    pickedIp = list.some(function (x) { return x.ip === want; }) ? want : (list[0] || {}).ip || null;
+    $("ipPick").value = pickedIp || "";
+  }
+  $("ipPick").onchange = function () { pickedIp = this.value; store.set("ip", pickedIp); drawJoin(); };
+
+  function facts(c) {
+    var out = [], s = c.status || {}, st = c.stats || {}, sent = s.sent || {};
+    if (!c.online) return '<span class="warn">Phone not connected</span>';
+    if (st.width) out.push(st.width + "×" + st.height + " · " + st.fps + "fps in OBS" + (st.codec ? " · " + st.codec : ""));
+    else if (s.width) out.push(Math.max(s.width, s.height) + "×" + Math.min(s.width, s.height) + " on the phone");
+    if (s.camFps) out.push("Camera " + s.camFps + "fps");
+    if (s.app === "android") out.push("Android app");
+    if (sent.step) out.push('<span class="warn">Sending a smaller picture to keep the motion smooth (weak Wi-Fi)</span>');
+    if (st.loss > 2) out.push('<span class="warn">Weak Wi-Fi (' + st.loss + "% lost)</span>");
+    if (s.battery != null) out.push((s.charging ? "Charging " : "Battery ") + '<span class="' + (s.battery < 20 && !s.charging ? "warn" : "") + '">' + s.battery + "%</span>");
+    if (s.mm) out.push(s.mm + "mm");
+    if (s.width && s.height > s.width) out.push('<span class="warn">Phone is upright: OBS gets only the middle. Hold it sideways</span>');
+    if (!c.viewers) out.push("Not in OBS yet");
+    if (c.tally === "unknown") out.push("No live light on the phone: vMix and other programs cannot tell it when the camera is live");
+    return out.join("<span>·</span>");
+  }
+  // what is spoiling this camera's picture, most important first
+  function alerts(c) {
+    var out = [], s = c.status || {}, st = c.stats || {}, want = s.want || +s.fps || 30;
+    if (!c.online) return out;
+    if (st.mode === "still") out.push("<b>OBS is getting still pictures from this phone, not live video</b>, so it moves like a slideshow. Make sure the phone and this computer are on the same Wi-Fi with no VPN. On a Mac, allow OBS in System Settings → Privacy &amp; Security → <b>Local Network</b>, then restart OBS.");
+    if (c.restarting) out.push("<b>OBS keeps restarting this camera</b>, so it goes black or shows “Waiting” when you switch. In OBS, double-click this camera’s Browser source and untick <b>Shutdown source when not visible</b> and <b>Refresh browser when scene becomes active</b>.");
+    if (c.copies > 1) out.push("<b>This camera is in " + c.copies + " OBS Browser sources</b>, so the phone sends " + c.copies + " pictures. Keep one source; to show it in another scene use Sources <b>+</b> → <b>Browser</b> → <b>Add Existing</b>.");
+    if (s.camFps && s.camFps < want * 0.75) out.push("<b>Too dark for smooth motion:</b> the phone’s camera has slowed to " + s.camFps + " frames a second to gather light, so moving shots look jumpy. Add light where it is pointing.");
+    if (st.freezes >= 3) out.push("<b>The picture froze " + st.freezes + " times in the last minute.</b> The Wi-Fi is struggling: move the phone closer to the router, or choose HD 720p on the phone.");
+    return out;
+  }
+  function tile(c) {
+    var t = tiles[c.cam];
+    if (!t) {
+      var el = document.createElement("article"); el.className = "cam";
+      el.innerHTML = '<div class="shot"><div class="off">Phone not connected</div><span class="tag"></span></div>' +
+        '<div class="info"><div class="name"><span class="n"></span><small></small></div><div class="facts"></div><div class="alert" hidden></div>' +
+        '<div class="btns"><button class="btn gold" data-a="obs" type="button">Copy OBS link</button><button class="btn" data-a="vmix" type="button">Copy vMix link</button></div></div>';
+      el.querySelector('[data-a="obs"]').onclick = function () { copy(obsLink(c.cam), "OBS link"); };
+      el.querySelector('[data-a="vmix"]').onclick = function () { copy(vmixLink(c.cam), "vMix link"); };
+      t = tiles[c.cam] = { el: el, frame: null };
+    }
+    var el2 = t.el;
+    el2.className = "cam " + (c.tally === "live" || c.tally === "standby" ? c.tally : "");
+    el2.querySelector(".n").textContent = c.name;
+    el2.querySelector(".name small").textContent = c.viewers ? "In OBS" + (c.viewers > 1 ? " ×" + c.viewers : "") : "";
+    el2.querySelector(".tag").textContent = c.tally === "live" ? "LIVE" : c.tally === "standby" ? "NOT LIVE" : !c.online ? "OFFLINE" : c.tally === "unknown" ? "CONNECTED" : "READY";
+    el2.querySelector(".facts").innerHTML = facts(c);
+    var alert = el2.querySelector(".alert");
+    alert.innerHTML = alerts(c).join("<br>");
+    alert.hidden = !alert.innerHTML;
+    var want = c.online && $("previews").checked;
+    if (want && !t.frame) {
+      t.frame = document.createElement("iframe"); t.frame.title = c.name + " picture";
+      t.frame.src = "/view?kind=preview&blank=1&cam=" + encodeURIComponent(c.cam);
+      el2.querySelector(".shot").insertBefore(t.frame, el2.querySelector(".tag"));
+    } else if (!want && t.frame) { t.frame.remove(); t.frame = null; }
+    el2.querySelector(".off").textContent = c.online ? "Small pictures are off" : "Phone not connected";
+    return el2;
+  }
+  var last = [];
+  function render(cams) {
+    last = cams;
+    var box = $("cams"), seen = {};
+    // moving an iframe in the page reloads it, so tiles stay put and CSS order sorts them
+    cams.forEach(function (c, i) { seen[c.cam] = true; var el = tile(c); el.style.order = i; if (el.parentNode !== box) box.appendChild(el); });
+    Object.keys(tiles).forEach(function (k) { if (!seen[k]) { tiles[k].el.remove(); delete tiles[k]; } });
+    $("empty").hidden = cams.length > 0;
+  }
+  $("previews").onchange = function () { store.set("previews", this.checked ? "1" : "0"); render(last); };
+  $("preCopy").onclick = function () { var n = $("preName").value.trim(); if (!n) { $("preName").focus(); return; } copy(obsLink(slug(n)), "OBS link for " + n); };
+
+  GCSignal.connect({ role: "control" }, {
+    hello: function (m) { INFO = m.info; fillIps(); drawJoin(); },
+    state: function (m) { render(m.cameras || []); },
+    up: function () { $("conn").classList.remove("down"); $("connText").textContent = "Running"; },
+    down: function () { $("conn").classList.add("down"); $("connText").textContent = "Not running: start GloryCast Cam on this computer"; }
+  });
+})();
+</script>
+</body>
+</html>

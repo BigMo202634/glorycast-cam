@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GloryCast Cam picture</title>
+<style>
+  @font-face { font-family: "Montserrat"; src: url("fonts/Montserrat-VF.ttf") format("truetype"); font-weight: 100 900; }
+  html, body { margin: 0; width: 100%; height: 100%; background: #000; overflow: hidden; }
+  #pic { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #video, #still { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  /* always landscape: a tall picture (phone held upright) shows its middle part, filling the frame */
+  body.cover #video, body.cover #still, #video.tall, #still.tall { object-fit: cover; }
+  #video { z-index: 1; }
+  #wait { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; color: rgba(238,242,250,.55); font: 600 2.2vw "Montserrat", system-ui, sans-serif; text-align: center; letter-spacing: .02em; }
+  #wait small { display: block; font-size: .6em; font-weight: 500; margin-top: .4em; color: rgba(238,242,250,.35); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div id="pic">
+  <canvas id="still" width="16" height="9"></canvas>
+  <video id="video" autoplay playsinline muted></video>
+</div>
+<div id="wait" hidden><div><span id="waitText"></span><small id="waitHint"></small></div></div>
+<script src="js/signal.js"></script>
+<script>
+(function () {
+  "use strict";
+  var q = new URLSearchParams(location.search), cam = q.get("cam") || "camera", kind = q.get("kind") === "preview" ? "preview" : "view";
+  if (q.get("fit") === "cover") document.body.classList.add("cover");
+  var blank = q.get("blank") === "1", mirror = q.get("mirror") === "1";
+  var HOLD = (+q.get("hold") || 10) * 1000; // how long the last picture stays if the phone goes away
+  var label = cam.replace(/-/g, " ");
+  var pic = document.getElementById("pic"), video = document.getElementById("video"), still = document.getElementById("still"), wait = document.getElementById("wait");
+  var pc = null, shown = null, phone = null, sig, tally = { live: false, obs: kind === "view" && !!window.obsstudio }, look = { gain: 0 };
+  // phoneHere: the phone is connected to GloryCast Cam. frameAt: when a new frame last arrived.
+  // good: when the picture was last new (live frame or fresh still). picAt: when anything was on screen.
+  var phoneHere = false, frameAt = 0, frames = { pc: null, n: 0 }, good = 0, picAt = Date.now();
+  var stillHas = false, grabAt = 0, stillAt = 0, stillBusy = false;
+
+  // nothing is turned; brighten the picture when the phone asks (its camera has no exposure control)
+  function place() {
+    pic.style.transform = mirror ? "scaleX(-1)" : "";
+    pic.style.filter = look.gain ? "brightness(" + Math.pow(2, look.gain / 2).toFixed(3) + ")" : "";
+  }
+  place();
+  function tall(el, w, h) { el.classList.toggle("tall", h > w); }
+
+  // ---- the still layer under the video: the last good picture, so a gap never shows black ----
+  // While the picture is live it copies a frame twice a second. When the live picture stops or
+  // restarts, this copy shows through; a page OBS has just opened starts on the phone's own still.
+  function paint(src, w, h) {
+    if (!w || !h) return false;
+    var k = Math.min(1, 1280 / Math.max(w, h)), cw = Math.round(w * k), ch = Math.round(h * k);
+    if (still.width !== cw || still.height !== ch) { still.width = cw; still.height = ch; tall(still, cw, ch); }
+    try { still.getContext("2d").drawImage(src, 0, 0, cw, ch); } catch (e) { return false; }
+    stillHas = true;
+    return true;
+  }
+  function grab() { if (video.readyState >= 2) paint(video, video.videoWidth, video.videoHeight); }
+  // the phone sends a small still every second: used when this page has just opened or the live picture stalls
+  function fetchStill() {
+    if (stillBusy) return;
+    stillBusy = true; stillAt = Date.now();
+    var im = new Image();
+    im.onload = function () { stillBusy = false; if (!isLive() && paint(im, im.naturalWidth, im.naturalHeight)) { good = Date.now(); update(); } };
+    im.onerror = function () { stillBusy = false; };
+    im.src = "/still?cam=" + encodeURIComponent(cam) + "&t=" + Date.now();
+  }
+  function isLive() { return !!shown && video.readyState >= 2 && Date.now() - frameAt < 2000; }
+
+  // ---- what to show: the live picture, else the last good one; the text only when there is nothing ----
+  function update() {
+    var now = Date.now(), live = isLive();
+    if (live) { good = now; if (now - grabAt > 450) { grabAt = now; grab(); } }
+    else if (phoneHere && now - stillAt > 900) fetchStill();
+    // a stalled or restarting video steps aside so the last good picture shows
+    video.style.visibility = live || !stillHas ? "" : "hidden";
+    // the phone has gone and nothing new has come for a while: clear the old picture
+    if (!phoneHere && !live && (shown || stillHas) && now - good > HOLD) clearPicture();
+    var has = live || stillHas || (!!video.srcObject && video.readyState >= 2);
+    if (has) picAt = now;
+    // never show the text on Program (OBS says when the source is live), and give a restart a moment first
+    var show = !blank && !has && !tally.live && now - picAt > (phoneHere ? 8000 : 2500);
+    if (show) {
+      document.getElementById("waitText").textContent = (phoneHere ? "Connecting to the " : "Waiting for the ") + label + " camera";
+      document.getElementById("waitHint").textContent = phoneHere ? "Check the phone and this computer are on the same Wi-Fi" : "Open GloryCast Cam on the phone and start the camera";
+    }
+    wait.hidden = !show;
+  }
+  function clearPicture() {
+    if (shown) { try { shown.close(); } catch (e) { /* closed */ } }
+    if (pc === shown) pc = null;
+    shown = null; video.srcObject = null;
+    still.getContext("2d").clearRect(0, 0, still.width, still.height); stillHas = false;
+  }
+  function tick() {
+    var cur = shown;
+    if (!cur) return update();
+    cur.getStats().then(function (r) {
+      r.forEach(function (s) {
+        if (s.type !== "inbound-rtp" || s.kind !== "video") return;
+        var n = s.framesDecoded || 0;
+        if (n > (frames.pc === cur ? frames.n : 0)) frameAt = Date.now();
+        frames = { pc: cur, n: n };
+      });
+    }).catch(function () {}).then(update);
+  }
+  setInterval(tick, 500);
+  ["emptied", "waiting", "stalled", "ended", "pause"].forEach(function (ev) { video.addEventListener(ev, function () { if (ev !== "waiting") frameAt = 0; update(); }); });
+
+  // start the phone's encoder near full quality instead of climbing up from a blurry picture
+  function fastStart(sdp) {
+    var lines = sdp.split("\r\n"), inVideo = false, pts = {};
+    lines.forEach(function (l) {
+      if (l.indexOf("m=") === 0) inVideo = l.indexOf("m=video") === 0;
+      var m = inVideo && /^a=rtpmap:(\d+) (H264|VP8|VP9|AV1)\//i.exec(l);
+      if (m) pts[m[1]] = true;
+    });
+    var hasFmtp = function (pt) { return lines.some(function (l) { return l.indexOf("a=fmtp:" + pt + " ") === 0; }); };
+    var out = [];
+    lines.forEach(function (l) {
+      var f = /^a=fmtp:(\d+) /.exec(l);
+      if (f && pts[f[1]] && l.indexOf("x-google-start-bitrate") < 0) l += ";x-google-start-bitrate=4000";
+      out.push(l);
+      var r = /^a=rtpmap:(\d+) /.exec(l);
+      if (r && pts[r[1]] && !hasFmtp(r[1])) out.push("a=fmtp:" + r[1] + " x-google-start-bitrate=4000");
+    });
+    return out.join("\r\n");
+  }
+
+  function answer(from, sdp) {
+    if (pc && pc !== shown) { try { pc.close(); } catch (e) { /* closed */ } } // a newer offer replaces one still starting
+    phone = from;
+    var me = pc = new RTCPeerConnection({ iceServers: GCSignal.ICE });
+    me.ontrack = function (e) {
+      if (me !== pc) return;
+      // the newest frame stays underneath while the new connection starts
+      if (isLive()) grab();
+      if (shown && shown !== me) { try { shown.close(); } catch (x) { /* closed */ } }
+      shown = me; frameAt = 0;
+      video.srcObject = e.streams[0] || new MediaStream([e.track]);
+      video.play().catch(function () {});
+      e.track.addEventListener("mute", function () { if (me === shown) { frameAt = 0; update(); } });
+      update();
+    };
+    me.onicecandidate = function (e) { if (e.candidate) sig.signal(from, { ice: e.candidate }); };
+    me.onconnectionstatechange = function () { if (me === shown) tick(); };
+    me.setRemoteDescription(sdp)
+      .then(function () { return me.createAnswer(); })
+      .then(function (a) { return me.setLocalDescription(a); })
+      .then(function () {
+        var d = me.localDescription;
+        sig.signal(from, { sdp: kind === "view" ? { type: d.type, sdp: fastStart(d.sdp) } : d });
+      })
+      .catch(function (e) { console.warn("GloryCast Cam: could not answer the phone", e); });
+  }
+  video.addEventListener("playing", function () { frameAt = Date.now(); update(); });
+  video.addEventListener("resize", function () { tall(video, video.videoWidth, video.videoHeight); });
+
+  // open on the phone's latest still straight away (OBS may have just created this page)
+  fetchStill();
+
+  sig = GCSignal.connect({ role: kind, cam: cam, page: Math.random().toString(36).slice(2, 10), obs: tally.obs ? 1 : 0 }, {
+    hello: function (m) {
+      // GloryCast Cam was updated while OBS kept this page open: load the new version
+      var b = m.info && m.info.build;
+      if (b && window.__build && b !== window.__build) { location.reload(); return; }
+      window.__build = b;
+      phoneHere = !!m.phone;
+      if (kind === "view") sig.post("/tally", { live: tally.live, obs: tally.obs });
+      update();
+    },
+    signal: function (m) {
+      if (m.data.sdp && m.data.sdp.type === "offer") answer(m.from, m.data.sdp);
+      else if (m.data.ice && pc && m.from === phone) pc.addIceCandidate(m.data.ice).catch(function () {});
+    },
+    "phone-here": function () { phoneHere = true; update(); },
+    // the picture comes straight from the phone, so it can keep going; it is cleared only if it stops
+    "phone-left": function () { phoneHere = false; update(); },
+    look: function (m) { look = { gain: +m.gain || 0 }; place(); },
+    down: function () { phoneHere = false; update(); }
+  });
+
+  // ---- live light (tally): is this source on OBS's Program? ----
+  // OBS tells a Browser source when it goes on or off Program ("active"), and when it is drawn
+  // anywhere at all ("showing"). Showing flickers with Preview, multiview and every picture
+  // GloryCast Switch takes of a scene, so only Program counts. OBS reports changes only, so a page
+  // that opens while already on Program hears nothing: until OBS says, a page drawn the whole time
+  // since it opened counts as live, and one hidden even once since then is certainly not.
+  var onAir = null, hiddenOnce = false, hidSent = 0, told = "";
+  function judge() {
+    tally.live = onAir !== null ? onAir : tally.obs && !hiddenOnce;
+    if (told === tally.live + "/" + tally.obs) return;
+    told = tally.live + "/" + tally.obs;
+    sig.post("/tally", { live: tally.live, obs: tally.obs });
+    update();
+  }
+  function hidden() {
+    hiddenOnce = true;
+    // this page lived on after OBS hid it, so OBS is not restarting it (the media computer page stops warning)
+    if (Date.now() - hidSent > 5000) { hidSent = Date.now(); sig.post("/tally", { ev: "hid" }); }
+    judge();
+  }
+  if (kind === "view") {
+    window.addEventListener("obsSourceActiveChanged", function (e) {
+      var was = onAir;
+      tally.obs = true; onAir = !!(e.detail && e.detail.active);
+      if (onAir && !was) sig.post("/tally", { ev: "lived" });
+      judge();
+    });
+    window.addEventListener("obsSourceVisibleChanged", function (e) { tally.obs = true; if (!(e.detail && e.detail.visible)) hidden(); });
+    document.addEventListener("visibilitychange", function () { if (tally.obs && document.visibilityState === "hidden") hidden(); });
+    if (tally.obs && document.visibilityState === "hidden") hidden(); // OBS opened this page while the source was not drawn
+    else judge();
+    // picture size and smoothness, for the media computer page. mode "still": the phone is connected
+    // but no live video is arriving, so this page is showing its once-a-second pictures instead.
+    var noLiveSince = 0, freezes = [], last = { t: 0, frames: 0, freezes: -1 };
+    setInterval(function () {
+      var now = Date.now(), here = phoneHere && !isLive();
+      noLiveSince = here ? noLiveSince || now : 0;
+      var stillOnly = noLiveSince && now - noLiveSince > 6000;
+      if (!shown || !video.videoWidth) {
+        if (stillOnly || phoneHere) sig.post("/tally", { stats: { mode: stillOnly ? "still" : "none" } });
+        return;
+      }
+      shown.getStats().then(function (r) {
+        var v = null, codecs = {};
+        r.forEach(function (s) {
+          if (s.type === "inbound-rtp" && (s.kind || s.mediaType) === "video") v = s;
+          else if (s.type === "codec") codecs[s.id] = s;
+        });
+        if (!v) return;
+        // frames a second over the last 3 seconds, counted here (framesPerSecond is missing in some versions)
+        var dt = (now - last.t) / 1000, fps = last.t && dt > 0.5 && dt < 10 ? Math.max(0, (v.framesDecoded || 0) - last.frames) / dt : v.framesPerSecond || 0;
+        if (v.freezeCount != null) { if (last.freezes >= 0 && v.freezeCount > last.freezes) freezes.push(now); last.freezes = v.freezeCount; }
+        freezes = freezes.filter(function (t) { return now - t < 60000; });
+        last.t = now; last.frames = v.framesDecoded || 0;
+        var lost = v.packetsLost || 0, recv = v.packetsReceived || 0, c = codecs[v.codecId];
+        var w = video.videoWidth, h = video.videoHeight;
+        if (h > w) h = Math.round(w * 9 / 16); // OBS shows the landscape middle of a tall picture
+        var delay = v.jitterBufferEmittedCount ? Math.round(1000 * v.jitterBufferDelay / v.jitterBufferEmittedCount) : null;
+        sig.post("/tally", { stats: { width: w, height: h, fps: Math.round(fps), loss: recv ? Math.round(1000 * lost / (lost + recv)) / 10 : 0,
+          codec: c ? String(c.mimeType || "").replace(/^video\//i, "").replace(/^h264$/i, "H.264") : "", freezes: freezes.length, delay: delay,
+          mode: stillOnly ? "still" : isLive() ? "live" : "none" } });
+      }).catch(function () {});
+    }, 3000);
+  }
+  window.GCView = { tally: tally, pc: function () { return shown || pc; }, look: function () { return look; },
+    state: function () { return { live: isLive(), still: stillHas, frame: !!video.srcObject && video.readyState >= 2, phone: phoneHere, wait: !wait.hidden }; } };
+})();
+</script>
+</body>
+</html>

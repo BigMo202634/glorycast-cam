@@ -1,0 +1,815 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#000000">
+<link rel="apple-touch-icon" href="img/icon-180.png">
+<title>GloryCast Cam</title>
+<style>
+  @font-face { font-family: "Montserrat"; src: url("fonts/Montserrat-VF.ttf") format("truetype"); font-weight: 100 900; }
+  :root { --navy: #0F1E3D; --navy-2: #172A50; --line: #2C4475; --gold: #C9A227; --text: #EEF2FA; --muted: #9BA9C6;
+          --live: #E5383B; --next: #2FBF71; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: #000; color: var(--text); font-family: "Montserrat", system-ui, sans-serif; overflow: hidden; }
+  button, input, select { font: inherit; color: inherit; }
+  [hidden] { display: none !important; }
+
+  /* join */
+  #join { position: fixed; inset: 0; background: var(--navy); display: grid; place-items: center; padding: max(20px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom)); overflow-y: auto; }
+  .card { width: 100%; max-width: 420px; display: grid; gap: 16px; }
+  .colA, .colB { display: grid; gap: 16px; align-content: start; }
+  /* phone held sideways: two columns so Start camera is on screen */
+  @media (orientation: landscape) and (max-height: 560px) {
+    .card { max-width: 860px; grid-template-columns: 1fr 1fr; gap: 28px; }
+    .colA, .colB { gap: 12px; }
+    h1 { font-size: 19px; }
+    input, select { padding: 9px 12px; }
+    .go { padding: 12px; }
+  }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: .02em; font-size: 20px; }
+  .logo img { width: 36px; height: 36px; border-radius: 8px; }
+  .logo b { color: var(--gold); }
+  h1 { font-size: 22px; margin: 0; }
+  p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+  label { display: grid; gap: 6px; font-size: 13px; font-weight: 600; color: var(--muted); }
+  input, select { background: var(--navy-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 16px; width: 100%; }
+  input:focus, select:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .names { display: flex; flex-wrap: wrap; gap: 8px; }
+  .names button { background: transparent; border: 1px solid var(--line); border-radius: 99px; padding: 6px 12px; font-size: 13px; }
+  .go { background: var(--gold); color: var(--navy); border: 0; border-radius: 12px; padding: 15px; font-size: 17px; font-weight: 800; }
+  .go:disabled { opacity: .6; }
+  .err { background: rgba(229,56,59,.15); border: 1px solid var(--live); color: #ffd6d6; border-radius: 10px; padding: 10px 12px; font-size: 14px; line-height: 1.45; }
+
+  /* camera */
+  #cam { position: fixed; inset: 0; }
+  video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+  /* live light round the screen, on top of everything: red while this camera is on Program, green while it is not */
+  .tally { position: absolute; inset: 0; z-index: 4; border: 10px solid transparent; pointer-events: none; transition: border-color .15s; }
+  @media (pointer: coarse) { .tally { border-radius: 40px; } } /* follows a phone's rounded screen corners */
+  body.live .tally { border-color: var(--live); }
+  body.standby .tally { border-color: var(--next); }
+  .bar { position: absolute; left: 0; right: 0; display: flex; align-items: center; gap: 10px; padding: 12px max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left)); font-size: 13px; font-weight: 600; transition: opacity .2s; }
+  .top { top: 0; padding-top: max(12px, env(safe-area-inset-top)); background: linear-gradient(rgba(0,0,0,.6), transparent); }
+  .bot { bottom: 0; padding-bottom: max(12px, env(safe-area-inset-bottom)); background: linear-gradient(transparent, rgba(0,0,0,.65)); flex-wrap: wrap; justify-content: center; }
+  body.hideui .bar { opacity: 0; pointer-events: none; }
+  .pill { padding: 5px 12px; border-radius: 99px; font-weight: 800; letter-spacing: .08em; font-size: 12px; background: rgba(255,255,255,.18); white-space: nowrap; }
+  body.live .pill { background: var(--live); }
+  body.standby .pill { background: var(--next); }
+  .sp { flex: 1; }
+  .meta { color: #dfe5f2; white-space: nowrap; }
+  .camname { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vw; }
+  .ctl { background: rgba(0,0,0,.5); border: 1px solid rgba(255,255,255,.28); border-radius: 10px; padding: 9px 12px; font-size: 13px; font-weight: 700; white-space: nowrap; }
+  .ctl.on { background: var(--gold); color: var(--navy); border-color: var(--gold); }
+  .slider { display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,.5); border: 1px solid rgba(255,255,255,.28); border-radius: 10px; padding: 4px 12px; font-size: 13px; font-weight: 700; }
+  .slider input { padding: 0; width: 120px; background: transparent; border: 0; accent-color: var(--gold); }
+  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  #sheet { position: absolute; top: 0; right: 0; bottom: 0; width: min(420px, 62vw); background: rgba(10,18,38,.94); border-left: 1px solid var(--line);
+           overflow-y: auto; padding: max(14px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) 16px; display: grid; gap: 10px; align-content: start; }
+  @media (orientation: portrait) { #sheet { width: 100%; top: 35%; border-left: 0; border-top: 1px solid var(--line); } }
+  .sh-head { display: flex; align-items: center; justify-content: space-between; font-size: 16px; }
+  #sheet h3 { margin: 8px 0 0; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); }
+  #sheet select { padding: 8px 10px; font-size: 14px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips button { background: var(--navy-2); border: 1px solid var(--line); border-radius: 99px; padding: 7px 11px; font-size: 12.5px; font-weight: 600; }
+  .chips button.on { background: var(--gold); color: var(--navy); border-color: var(--gold); }
+  .chips button:disabled, .slide.off, .ctl:disabled { opacity: .35; }
+  .slide { display: grid; grid-template-columns: 78px 1fr 64px; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; margin-top: 6px; }
+  .slide input { padding: 0; border: 0; background: transparent; accent-color: var(--gold); width: 100%; }
+  .slide output { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .ctl.wide { width: 100%; margin-top: 6px; }
+  .hint { font-size: 12.5px; color: var(--muted); }
+  .hint.na { color: #c7b98a; }
+  #ui { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-origin: 0 0; }
+  #touch { position: absolute; inset: 0; touch-action: none; }
+  #evLine { position: absolute; right: max(18px, env(safe-area-inset-right)); top: 22%; bottom: 22%; width: 44px; display: grid; grid-template-rows: 1fr auto; justify-items: center; gap: 6px; pointer-events: none; }
+  #evLine .track { position: relative; width: 2px; height: 100%; background: rgba(255,255,255,.55); border-radius: 2px; }
+  #evLine .knob { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 34px; height: 34px; border-radius: 50%; background: rgba(0,0,0,.35); color: var(--gold); display: grid; place-items: center; font-size: 20px; line-height: 1; }
+  #evLine output { font-size: 12px; font-weight: 700; color: var(--gold); text-shadow: 0 1px 2px #000; font-variant-numeric: tabular-nums; }
+  body.dragging #evLine .knob { background: rgba(201,162,39,.25); }
+  #zoomChip { position: absolute; z-index: 3; left: 50%; top: 22%; transform: translateX(-50%); background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.3); border-radius: 99px; padding: 6px 14px; font-weight: 800; font-size: 16px; pointer-events: none; }
+  .banner { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); background: rgba(15,30,61,.92); border: 1px solid var(--line); border-radius: 14px; padding: 14px 18px; text-align: center; font-size: 15px; font-weight: 600; max-width: 80vw; line-height: 1.45; }
+  .banner small { display: block; color: var(--muted); font-weight: 500; font-size: 13px; margin-top: 4px; }
+  /* in the empty space above the picture, clear of the buttons at the bottom */
+  #rotate, #dim { top: calc(max(12px, env(safe-area-inset-top)) + 56px); transform: translateX(-50%); width: max-content; max-width: min(420px, calc(100% - 32px)); }
+  .meta.warn { color: #ffb020; }
+  /* phone upright: OBS gets the middle of the picture in landscape, so the phone shows that part */
+  #cam.tall video { top: 50%; bottom: auto; height: auto; aspect-ratio: 16 / 9; transform: translateY(-50%); object-fit: cover; }
+  #cam.tall #zoomChip { top: calc(50% - 28.125vw + 12px); }
+  .lenses { display: flex; gap: 2px; background: rgba(0,0,0,.5); border: 1px solid rgba(255,255,255,.28); border-radius: 10px; padding: 3px; }
+  .lenses button { background: transparent; border: 0; border-radius: 7px; padding: 6px 8px; font-size: 13px; font-weight: 700; color: #dfe5f2; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .lenses button small { font-size: 10px; font-weight: 600; margin-left: 1px; opacity: .8; }
+  .lenses button.on { background: var(--gold); color: var(--navy); }
+  @media (max-width: 700px) { .lenses button { padding: 6px 5px; } }
+  /* narrow screen (phone upright): the lenses get their own row across the screen, the buttons go under them */
+  @media (max-width: 620px) {
+    .lenses { order: -1; flex: 1 1 100%; }
+    .lenses button { flex: 1 1 0; min-width: 0; padding: 7px 0; }
+  }
+  /* very narrow: the camera name keeps its room; size and battery go on a second line */
+  @media (max-width: 430px) {
+    .lenses button:not(.on) small { display: none; }
+    .top { flex-wrap: wrap; row-gap: 3px; }
+    .top .camname { flex: 1 1 0; min-width: 0; max-width: none; }
+    .top #stopBtn { order: 1; }
+    .top .sp { order: 2; flex: 1 1 100%; height: 0; }
+    .top .meta { order: 3; font-size: 12px; }
+    #rotate, #dim { top: calc(max(12px, env(safe-area-inset-top)) + 80px); }
+  }
+  @media (max-width: 370px) { .lenses button small { display: none; } }
+</style>
+</head>
+<body class="off">
+
+<section id="join">
+  <div class="card">
+   <div class="colA">
+    <div class="logo"><img src="img/icon-180.png" alt=""><span>GloryCast <b>Cam</b></span></div>
+    <h1>Use this phone as a camera</h1>
+    <p>The picture goes over the church Wi-Fi to OBS or vMix on the media computer. Sound still comes from the mixer.</p>
+    <div id="insecure" class="err" hidden>This page must be opened from the link or QR code on the media computer (it starts with https). The camera is blocked on this address.</div>
+    <div id="joinErr" class="err" hidden></div>
+    <p class="tip">Hold the phone sideways, keep this page open and the screen on. Plug in the charger for long services.</p>
+   </div>
+   <div class="colB">
+    <label for="camName">Camera name
+      <input id="camName" maxlength="24" autocomplete="off" placeholder="Altar" enterkeyhint="go">
+    </label>
+    <div class="names" id="quick"><button type="button">Altar</button><button type="button">Choir</button><button type="button">Wide</button><button type="button">Pulpit</button><button type="button">Congregation</button></div>
+    <div class="row3">
+      <label for="lens">Camera
+        <select id="lens"><option value="environment">Back</option><option value="user">Front (selfie)</option></select>
+      </label>
+      <label for="quality">Picture
+        <select id="quality"><option value="2160">4K (2160p)</option><option value="1080">Full HD 1080p</option><option value="720">HD 720p (weak Wi-Fi)</option></select>
+      </label>
+      <label for="fps">Frame rate
+        <select id="fps"><option value="24">24 fps (film look)</option><option value="25">25 fps</option><option value="30">30 fps</option><option value="50">50 fps</option><option value="60">60 fps (smooth motion)</option></select>
+      </label>
+    </div>
+    <button class="go" id="startBtn" type="button">Start camera</button>
+   </div>
+  </div>
+</section>
+
+<section id="cam" hidden>
+  <video id="video" autoplay playsinline muted></video>
+  <div class="tally"></div>
+  <div id="ui">
+  <div id="touch" aria-hidden="true"></div>
+  <div id="evLine" hidden><div class="track"><div class="knob" id="evKnob">☀</div></div><output id="evShow">0.0</output></div>
+  <div id="zoomChip" hidden>1.0×</div>
+  <div class="bar top">
+    <span class="pill" id="state">CONNECTING</span>
+    <span class="camname" id="nameLabel"></span>
+    <span class="sp"></span>
+    <span class="meta" id="res"></span>
+    <span class="meta" id="batt"></span>
+    <button class="ctl" id="stopBtn" type="button">Stop</button>
+  </div>
+  <div class="bar bot" id="controls">
+    <button class="ctl" id="setBtn" type="button" aria-expanded="false" aria-controls="sheet">Picture settings</button>
+    <div class="lenses" id="lenses" role="group" aria-label="Lens" hidden></div>
+    <button class="ctl" id="flipBtn" type="button">Flip</button>
+  </div>
+  <aside id="sheet" hidden aria-label="Picture settings">
+    <div class="sh-head"><b>Picture settings</b><button class="ctl" id="sheetClose" type="button">Done</button></div>
+
+    <h3>Picture</h3>
+    <div class="row2">
+      <label for="qualityLive">Resolution<select id="qualityLive"><option value="2160">4K (2160p)</option><option value="1080">Full HD 1080p</option><option value="720">HD 720p (weak Wi-Fi)</option></select></label>
+      <label for="fpsLive">Frame rate<select id="fpsLive"><option value="24">24 fps (film look)</option><option value="25">25 fps</option><option value="30">30 fps</option><option value="50">50 fps</option><option value="60">60 fps (smooth motion)</option></select></label>
+    </div>
+    <p class="hint" id="gotRes"></p>
+
+    <p class="hint">The picture to OBS is always landscape. Hold the phone sideways with the iPhone rotation lock off (Control Center) for the full picture.</p>
+
+    <h3>Lens</h3>
+    <p class="hint">Tap 24mm to 200mm at the bottom of the screen, or pinch to zoom in between. On phones with a zoom lens (iPhone Pro), the long settings switch to that lens by themselves so the picture stays sharp; without one they are a digital zoom.</p>
+
+    <h3>White balance</h3>
+    <div id="wbBox">
+      <div class="chips" id="wbChips">
+        <button type="button" data-k="auto" class="on">Auto</button>
+        <button type="button" data-k="3200">Indoor bulbs 3200K</button>
+        <button type="button" data-k="4000">Tube lights 4000K</button>
+        <button type="button" data-k="5500">Daylight 5500K</button>
+        <button type="button" data-k="6500">Cloudy / shade 6500K</button>
+      </div>
+      <div class="slide" id="kBox"><span>Kelvin</span><input type="range" id="kelvin" aria-label="White balance in Kelvin"><output id="kVal"></output></div>
+      <button class="ctl wide" id="wbLock" type="button">Lock white balance as it is now</button>
+    </div>
+    <p class="hint na" id="wbNa" hidden>This phone's browser does not allow white balance control. It stays on auto.</p>
+
+    <h3>Exposure</h3>
+    <p class="hint">Brightness: drag the ☀ line on the right of the screen up or down. Double-tap it to reset.</p>
+    <button class="ctl wide" id="expLock" type="button" hidden>Lock exposure as it is now</button>
+    <div class="slide" id="shutBox"><span>Shutter</span><input type="range" id="shutter" aria-label="Shutter speed"><output id="shutVal"></output></div>
+    <div class="slide" id="isoBox"><span>ISO</span><input type="range" id="iso" aria-label="ISO"><output id="isoVal"></output></div>
+    <p class="hint" id="shutHint" hidden>Under tube lights, set the shutter to 1/50 or 1/100 to stop flicker (Nigeria mains is 50 Hz).</p>
+    <p class="hint na" id="expNa" hidden>This phone's browser does not allow exposure control. It stays on auto.</p>
+
+    <h3>Focus and light</h3>
+    <div class="chips">
+      <button type="button" id="focusBtn">Focus: auto</button>
+      <button type="button" id="torchBtn">Torch</button>
+    </div>
+    <p class="hint na" id="focusNa" hidden></p>
+  </aside>
+  <div class="banner" id="waiting" hidden>Camera ready<small>Waiting for OBS or vMix to open this camera.</small></div>
+  <div class="banner" id="rotate" hidden>Hold the phone sideways for the full picture<small>OBS gets the middle part shown here. Turn off the iPhone rotation lock.</small></div>
+  <div class="banner" id="lost" hidden>Lost the media computer<small>Check this phone is on the church Wi-Fi. Reconnecting…</small></div>
+  <div class="banner" id="dim" hidden>Too dark for smooth motion<small>The camera has slowed to <span id="dimFps">15</span> frames a second to gather light, so moving shots look jumpy. Add light on this spot.</small></div>
+  </div>
+</section>
+
+<script src="js/signal.js"></script>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var store = {
+    get: function (k, d) { try { var v = localStorage.getItem("gccam." + k); return v === null ? d : v; } catch (e) { return d; } },
+    set: function (k, v) { try { localStorage.setItem("gccam." + k, v); } catch (e) { /* private mode */ } }
+  };
+  var S = { stream: null, track: null, sig: null, peers: {}, tally: "off", facing: store.get("lens", "environment"), quality: store.get("quality", "1080"), fps: store.get("fps", "30"), wake: null, focusLocked: false, torch: false,
+            mm: 24, mainZoom: 1, backId: null, backLabel: "", backTried: false };
+
+  $("camName").value = store.get("name", "");
+  $("lens").value = S.facing; $("quality").value = S.quality; $("fps").value = S.fps;
+  var params = new URLSearchParams(location.search);
+  if (params.get("name")) $("camName").value = params.get("name");
+  Array.prototype.forEach.call($("quick").children, function (b) { b.onclick = function () { $("camName").value = b.textContent; }; });
+  if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { $("insecure").hidden = false; $("startBtn").disabled = true; }
+
+  function showErr(msg) { $("joinErr").textContent = msg; $("joinErr").hidden = !msg; }
+
+  function constraints() {
+    var h = +S.quality || 1080, w = Math.round(h * 16 / 9), fps = +S.fps || 30;
+    var v = { width: { ideal: w }, height: { ideal: h }, frameRate: { ideal: fps, max: fps } };
+    if (S.facing === "environment" && S.backId) v.deviceId = { exact: S.backId }; else v.facingMode = { ideal: S.facing };
+    return { audio: false, video: v };
+  }
+  function trackEnded() { if (!S.stopping) setTimeout(restartCamera, 500); }
+  function getCamera() {
+    var was = S.track; if (was) was.onended = null; // replaced on purpose, not lost
+    return navigator.mediaDevices.getUserMedia(constraints()).catch(function (e) {
+      // the combined lens camera would not open: use the phone's normal back camera
+      if (S.facing === "environment" && S.backId) { S.backId = null; S.backLabel = ""; return navigator.mediaDevices.getUserMedia(constraints()); }
+      throw e;
+    }).then(function (stream) {
+      var old = S.stream;
+      S.stream = stream; S.track = stream.getVideoTracks()[0];
+      S.track.contentHint = "motion";
+      S.track.onended = trackEnded;
+      $("video").srcObject = stream;
+      Object.keys(S.peers).forEach(function (id) {
+        var p = S.peers[id]; if (p.sender) p.sender.replaceTrack(S.track).then(function () { tuneSender(p); }, function () {});
+      });
+      if (old) old.getTracks().forEach(function (t) { t.stop(); });
+      S.focusLocked = false; S.torch = false;
+      setupControls(); showRes();
+      return pickBackLenses();
+    }, function (e) { if (was && was === S.track) was.onended = trackEnded; throw e; });
+  }
+  // iPhones with more than one back lens also list a combined camera ("Back Triple Camera" or
+  // "Back Dual Camera") that moves to the zoom lens by itself when zoomed, like the iPhone camera
+  // app. Using it keeps the long lens settings sharp instead of enlarging the main lens.
+  function pickBackLenses() {
+    if (S.facing !== "environment" || S.backTried || !navigator.mediaDevices.enumerateDevices) return Promise.resolve();
+    S.backTried = true;
+    return navigator.mediaDevices.enumerateDevices().then(function (list) {
+      var cams = list.filter(function (d) { return d.kind === "videoinput" && !/front/i.test(d.label); });
+      var best = cams.filter(function (d) { return /triple/i.test(d.label); })[0] || cams.filter(function (d) { return /dual(?! wide)/i.test(d.label); })[0];
+      if (!best || best.deviceId === settings().deviceId) return;
+      S.backId = best.deviceId; S.backLabel = best.label;
+      return getCamera();
+    }).catch(function () {});
+  }
+  function restartCamera() {
+    if (S.stopping || document.hidden) return;
+    getCamera().catch(function () { setTimeout(restartCamera, 2000); });
+  }
+
+  $("startBtn").onclick = function () {
+    var name = $("camName").value.trim();
+    if (!name) { showErr("Give this camera a name, like Altar or Choir, so the media team knows which phone it is."); $("camName").focus(); return; }
+    showErr("");
+    S.facing = $("lens").value; S.quality = $("quality").value; S.fps = $("fps").value;
+    store.set("name", name); store.set("lens", S.facing); store.set("quality", S.quality); store.set("fps", S.fps);
+    $("startBtn").disabled = true; $("startBtn").textContent = "Starting…";
+    S.stopping = false;
+    getCamera().then(function () {
+      $("join").hidden = true; $("cam").hidden = false;
+      $("nameLabel").textContent = name;
+      goFullscreen(); keepAwake(); connect(name);
+    }).catch(function (e) {
+      var n = e && e.name;
+      showErr(n === "NotAllowedError" ? "The camera was blocked. Allow camera access for this page in the browser settings, then try again."
+        : n === "NotReadableError" ? "Another app is using the camera. Close it and try again."
+        : "Could not start the camera (" + (e && e.message || n || "unknown") + ").");
+    }).then(function () { $("startBtn").disabled = !window.isSecureContext; $("startBtn").textContent = "Start camera"; });
+  };
+
+  $("stopBtn").onclick = function () {
+    S.stopping = true;
+    if (S.sig) S.sig.close(); S.sig = null;
+    Object.keys(S.peers).forEach(closePeer);
+    if (S.stream) S.stream.getTracks().forEach(function (t) { t.stop(); });
+    S.stream = null; S.track = null;
+    if (S.wake) { S.wake.release().catch(function () {}); S.wake = null; }
+    clearInterval(S.statusTimer); clearInterval(S.stillTimer); clearTimeout(S.pruneTimer);
+    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(function () {});
+    setTally("off");
+    $("cam").hidden = true; $("join").hidden = false;
+  };
+
+  // ---- connection to the media computer ----
+  function connect(name) {
+    var sig = S.sig = GCSignal.connect({ role: "phone", name: name }, {
+      hello: function () {
+        $("lost").hidden = true; setTally("off"); sendStatus(); sendLook();
+        // back after a Wi-Fi blip: pictures that kept going stay as they are, ones OBS no longer has are closed
+        Object.keys(S.peers).forEach(function (id) { S.peers[id].seen = false; });
+        clearTimeout(S.pruneTimer);
+        S.pruneTimer = setTimeout(function () {
+          Object.keys(S.peers).forEach(function (id) { if (!S.peers[id].seen) closePeer(id); });
+          updateWaiting();
+        }, 4000);
+      },
+      viewer: function (m) {
+        var p = S.peers[m.id];
+        if (p && p.pc.connectionState === "connected") { p.seen = true; return; }
+        makePeer(m.id, m.kind);
+      },
+      "viewer-left": function (m) { closePeer(m.id); updateWaiting(); },
+      signal: function (m) { onSignal(m.from, m.data); },
+      tally: function (m) { setTally(m.tally); },
+      replaced: function () {
+        S.sig = null; sig.close();
+        $("stopBtn").onclick(); showErr("Another phone started with the name “" + name + "”. Pick a different name for this phone.");
+      },
+      down: function () {
+        if (sig.closed) return;
+        // the pictures go straight to OBS, so they keep going while this reconnects
+        $("lost").hidden = false; $("waiting").hidden = true; setTally("off", true);
+      },
+      up: function () { $("lost").hidden = true; }
+    });
+    clearInterval(S.statusTimer);
+    S.statusTimer = setInterval(sendStatus, 5000);
+    clearInterval(S.stillTimer);
+    S.stillTimer = setInterval(sendStill, 1000);
+  }
+
+  // A small still every second. When OBS opens (or reopens) this camera, it shows the still at
+  // once instead of black while the live picture connects.
+  var stillCanvas = null, stillBusy = false;
+  function sendStill() {
+    var v = $("video"), id = S.sig && S.sig.id;
+    if (stillBusy || !id || document.hidden || !v.videoWidth || $("cam").hidden) return;
+    var k = Math.min(1, 960 / Math.max(v.videoWidth, v.videoHeight));
+    stillCanvas = stillCanvas || document.createElement("canvas");
+    stillCanvas.width = Math.round(v.videoWidth * k); stillCanvas.height = Math.round(v.videoHeight * k);
+    try { stillCanvas.getContext("2d").drawImage(v, 0, 0, stillCanvas.width, stillCanvas.height); } catch (e) { return; }
+    if (!stillCanvas.toBlob) return;
+    stillBusy = true;
+    stillCanvas.toBlob(function (b) {
+      if (!b) { stillBusy = false; return; }
+      fetch("/still?id=" + encodeURIComponent(id), { method: "POST", headers: { "Content-Type": "image/jpeg" }, body: b })
+        .catch(function () {}).then(function () { stillBusy = false; });
+    }, "image/jpeg", 0.7);
+  }
+
+  function setTally(t, quiet) {
+    var was = S.tally; S.tally = t;
+    document.body.className = document.body.className.replace(/\b(live|standby|unknown|off)\b/g, "").trim() + " " + t;
+    // unknown: only vMix or a plain browser has the picture, and they cannot say when it is live
+    $("state").textContent = t === "live" ? "● LIVE" : t === "standby" ? "NOT LIVE" : t === "unknown" ? "CONNECTED" : quiet ? "OFFLINE" : "READY";
+    if (t === "live" && was !== "live" && navigator.vibrate) navigator.vibrate([120, 60, 120]);
+    if (t === "live") document.body.classList.remove("hideui");
+    updateWaiting();
+  }
+  function updateWaiting() {
+    var viewers = Object.keys(S.peers).filter(function (id) { return S.peers[id].kind === "view"; }).length;
+    $("waiting").hidden = viewers > 0 || !S.sig || !$("lost").hidden;
+  }
+
+  function preferH264(pc) {
+    // phones encode H.264 in hardware: cooler phone, longer battery
+    if (!window.RTCRtpSender || !RTCRtpSender.getCapabilities) return;
+    var caps = RTCRtpSender.getCapabilities("video"); if (!caps) return;
+    var h = caps.codecs.filter(function (c) { return /h264/i.test(c.mimeType); }), rest = caps.codecs.filter(function (c) { return !/h264/i.test(c.mimeType); });
+    pc.getTransceivers().forEach(function (t) { if (t.setCodecPreferences && h.length) { try { t.setCodecPreferences(h.concat(rest)); } catch (e) { /* not allowed here */ } } });
+  }
+  // bits per second for the OBS picture: more for 4K and for 50/60 fps
+  function bitrate() {
+    var base = S.quality === "2160" ? 20000000 : S.quality === "720" ? 3500000 : 8000000, fps = +S.fps || 30;
+    return Math.round(base * (fps >= 50 ? 1.5 : fps <= 25 ? 0.85 : 1));
+  }
+  // Every picture keeps its full frame rate; when the Wi-Fi or the phone can't keep up it gets a
+  // little less sharp instead of jerky. The small picture on the media computer page is about
+  // 640×360 at up to 30 fps, so it moves like the real thing.
+  var STEPS = [1, 1.5, 2];
+  function tuneSender(p) {
+    if (!p.sender || !p.sender.getParameters) return;
+    var prm = p.sender.getParameters();
+    if (!prm.encodings || !prm.encodings.length) prm.encodings = [{}];
+    var e = prm.encodings[0], s = settings(), fps = +S.fps || 30;
+    var short = Math.min(s.width || 0, s.height || 0) || +S.quality || 1080;
+    if (p.kind === "preview") { e.maxBitrate = 1000000; e.scaleResolutionDownBy = Math.max(1, short / 360); e.maxFramerate = Math.min(30, fps); }
+    else { e.maxBitrate = bitrate(); e.maxFramerate = fps; e.scaleResolutionDownBy = STEPS[p.step || 0]; }
+    prm.degradationPreference = "maintain-framerate";
+    p.sender.setParameters(prm).catch(function () {});
+  }
+  function makePeer(id, kind) {
+    if (!S.track) return;
+    closePeer(id);
+    var pc = new RTCPeerConnection({ iceServers: GCSignal.ICE });
+    var p = S.peers[id] = { pc: pc, kind: kind, sender: pc.addTrack(S.track, S.stream), seen: true };
+    preferH264(pc);
+    pc.onicecandidate = function (e) { if (e.candidate && S.sig) S.sig.signal(id, { ice: e.candidate }); };
+    pc.onconnectionstatechange = function () {
+      if (pc.connectionState === "failed" && S.peers[id] === p) setTimeout(function () { if (S.peers[id] === p) makePeer(id, kind); }, 1000);
+    };
+    pc.createOffer().then(function (o) { return pc.setLocalDescription(o); }).then(function () {
+      tuneSender(p);
+      if (S.sig) S.sig.signal(id, { sdp: pc.localDescription });
+    }).catch(function () {});
+    updateWaiting();
+  }
+  function closePeer(id) { var p = S.peers[id]; if (!p) return; delete S.peers[id]; try { p.pc.close(); } catch (e) { /* closed */ } }
+  function onSignal(from, data) {
+    var p = S.peers[from]; if (!p) return;
+    if (data.sdp) p.pc.setRemoteDescription(data.sdp).then(function () { tuneSender(p); }).catch(function () {});
+    else if (data.ice) p.pc.addIceCandidate(data.ice).catch(function () {});
+  }
+
+  // ---- smooth motion: count the frames at each step and keep the OBS picture moving ----
+  // Every 2 seconds each OBS picture is checked. When the phone sends clearly fewer frames than
+  // the camera makes (weak Wi-Fi, or the phone can't keep up), that picture goes a step smaller
+  // so the motion stays smooth; after a long good spell it goes back up. A browser that already
+  // does this by itself never trips it. sm.cam: frames a second the camera really makes.
+  var sm = { cam: 0, seen: 0, dimSince: 0, dimShown: 0 };
+  function codecName(m) { m = String(m || "").replace(/^video\//i, ""); return /h264/i.test(m) ? "H.264" : m.toUpperCase(); }
+  function guardPeer(p, now) {
+    return p.sender.getStats().then(function (r) {
+      var src = null, out = null, codecs = {};
+      r.forEach(function (x) {
+        if (x.type === "media-source" && x.kind === "video") src = x;
+        else if (x.type === "outbound-rtp" && (x.kind || x.mediaType) === "video") out = x;
+        else if (x.type === "codec") codecs[x.id] = x;
+      });
+      if (!out) return;
+      var g = p.g || (p.g = { t: 0, sent: 0, src: 0, bad: 0, good: 0, wait: 20, changed: 0, upAt: 0 });
+      var sent = out.framesSent != null ? out.framesSent : out.framesEncoded || 0, made = src && src.frames != null ? src.frames : null;
+      var dt = (now - g.t) / 1000, ok = g.t > 0 && dt > 0.5 && dt < 10;
+      var sentFps = ok ? Math.max(0, sent - g.sent) / dt : 0;
+      var camFps = ok && made != null ? Math.max(0, made - g.src) / dt : (src && src.framesPerSecond) || 0;
+      g.t = now; g.sent = sent; g.src = made || 0;
+      if (!ok) return;
+      if (camFps > 1) { sm.cam = camFps; sm.seen = now; }
+      var want = +S.fps || 30, target = Math.min(want, camFps > 1 ? camFps : want);
+      if (target >= 10 && sentFps < target * 0.8) { g.bad++; g.good = 0; }
+      else if (sentFps >= target * 0.93) { g.good++; g.bad = Math.max(0, g.bad - 1); }
+      var step = p.step || 0;
+      if (g.bad >= 2 && step < STEPS.length - 1 && now - g.changed > 6000) {
+        if (g.upAt && now - g.upAt < 40000) g.wait = Math.min(g.wait * 2, 160); // went back up too soon
+        p.step = step + 1; g.changed = now; g.bad = 0; g.good = 0; tuneSender(p);
+      } else if (step > 0 && g.good * 2 >= g.wait && now - g.changed > 6000) {
+        p.step = step - 1; g.changed = g.upAt = now; g.good = 0; tuneSender(p);
+      }
+      var c = codecs[out.codecId];
+      p.info = { w: out.frameWidth || 0, h: out.frameHeight || 0, fps: Math.round(sentFps), why: out.qualityLimitationReason || "",
+                 codec: c ? codecName(c.mimeType) : "", step: p.step || 0 };
+    }).catch(function () {});
+  }
+  // the same count from the picture on this screen, for browsers that don't report the camera's frames
+  (function countShown() {
+    var v = $("video"), last = -1, n = 0, at = 0;
+    if (!v.requestVideoFrameCallback) return;
+    v.requestVideoFrameCallback(function cb(now, meta) {
+      if (last >= 0 && meta.presentedFrames > last) n += meta.presentedFrames - last;
+      last = meta.presentedFrames;
+      if (!at) at = now;
+      if (now - at >= 2000) { if (Date.now() - sm.seen > 5000) sm.cam = n * 1000 / (now - at); n = 0; at = now; }
+      v.requestVideoFrameCallback(cb);
+    });
+  })();
+  // too dark: phone browsers on Android let the camera slow down to get more light (iPhones don't)
+  // the frame rate this camera was set up for (the chosen one, or less if the phone can't do it)
+  function wantFps() { var f = +S.fps || 30, s = settings(); return s.frameRate > 1 ? Math.min(f, Math.round(s.frameRate)) : f; }
+  function checkDim(now) {
+    var want = wantFps(), dim = !$("cam").hidden && sm.cam > 1 && sm.cam < want * 0.75;
+    $("res").classList.toggle("warn", dim);
+    if (!dim) { sm.dimSince = 0; $("dim").hidden = true; return; }
+    if (!sm.dimSince) sm.dimSince = now;
+    if (now - sm.dimSince > 6000 && now - sm.dimShown > 120000) {
+      sm.dimShown = now;
+      $("dimFps").textContent = Math.round(sm.cam);
+      $("dim").hidden = !$("rotate").hidden;
+      setTimeout(function () { $("dim").hidden = true; }, 9000);
+    }
+  }
+  setInterval(function () {
+    var now = Date.now();
+    var views = Object.keys(S.peers).map(function (id) { return S.peers[id]; })
+      .filter(function (p) { return p.kind === "view" && p.sender && p.pc.connectionState === "connected"; });
+    Promise.all(views.map(function (p) { return guardPeer(p, now); })).then(function () { checkDim(now); showRes(); });
+  }, 2000);
+
+  // ---- camera controls (only the ones this phone's browser supports can be used) ----
+  function caps() { try { return S.track.getCapabilities ? S.track.getCapabilities() : {}; } catch (e) { return {}; } }
+  function settings() { try { return S.track.getSettings(); } catch (e) { return {}; } }
+  // Camera changes are sent one at a time and only the newest waits, so dragging never
+  // queues up dozens of changes (that made zoom lag and go black on iPhone).
+  // Changes to the same setting replace each other while waiting; different settings wait
+  // separately, because a phone ignores a whole change if one part of it is not allowed.
+  var pending = [], busy = false;
+  function apply(c) {
+    var key = Object.keys(c).sort().join(",");
+    if (key) {
+      var same = pending.filter(function (p) { return p.key === key; })[0];
+      if (same) same.c = c; else pending.push({ key: key, c: c });
+    }
+    if (busy || !S.track || !pending.length) return;
+    var next = pending.shift().c, track = S.track; busy = true;
+    track.applyConstraints({ advanced: [next] }).catch(function () {}).then(function () {
+      busy = false;
+      if (track !== S.track) pending = []; else apply({});
+    });
+  }
+  function has(list, v) { return !!list && list.indexOf(v) >= 0; }
+  function range(r) { return r && typeof r.max === "number" && r.max > r.min; }
+  function setRange(input, r, value) { input.min = r.min; input.max = r.max; input.step = r.step || (r.max - r.min) / 100; input.value = value == null ? r.min : value; }
+  var SHUTTERS = [30, 50, 60, 100, 120, 250, 500, 1000, 2000]; // 1/x of a second
+  var shutterList = [];
+
+  function setupControls() {
+    var c = caps(), s = settings();
+    $("qualityLive").value = S.quality; $("fpsLive").value = S.fps;
+    // zoom, set as lens sizes in mm (24mm = the main lens)
+    var z = c.zoom, label = (S.facing === "environment" && S.backLabel) || (S.track && S.track.label) || "";
+    if (range(z)) {
+      // a combined iPhone camera whose zoom starts at the ultra wide lens has the main lens at 2
+      S.mainZoom = z.min < 0.99 ? 1 : /triple|dual wide|ultra/i.test(label) ? 2 : 1;
+      S.zoomRange = { min: z.min, max: Math.min(z.max, S.mainZoom * 10) };
+      S.zoom = s.zoom || z.min;
+    } else { S.zoomRange = null; S.mainZoom = 1; S.zoom = 1; }
+    S.mm = +store.get("mm." + S.facing, "24") || 24; // each camera (back, front) keeps its own lens
+    buildLenses(); setLens(S.mm);
+
+    // white balance
+    var wbManual = has(c.whiteBalanceMode, "manual"), kOk = range(c.colorTemperature);
+    $("wbBox").hidden = !(wbManual || kOk); $("wbNa").hidden = !$("wbBox").hidden;
+    Array.prototype.forEach.call($("wbChips").children, function (b) {
+      var k = b.dataset.k;
+      b.classList.toggle("on", k === "auto");
+      b.disabled = k === "auto" ? !has(c.whiteBalanceMode, "continuous") && !wbManual : !(kOk && +k >= c.colorTemperature.min && +k <= c.colorTemperature.max);
+    });
+    $("kBox").classList.toggle("off", !kOk); $("kelvin").disabled = !kOk;
+    if (kOk) { setRange($("kelvin"), { min: c.colorTemperature.min, max: c.colorTemperature.max, step: c.colorTemperature.step || 50 }, s.colorTemperature || 5000); $("kVal").textContent = "Auto"; }
+    $("wbLock").disabled = !wbManual; $("wbLock").textContent = "Lock white balance as it is now";
+
+    // exposure
+    var ev = range(c.exposureCompensation), expManual = has(c.exposureMode, "manual"), shut = expManual && range(c.exposureTime), iso = expManual && range(c.iso);
+    // the on-screen line uses the camera's own exposure when the browser allows it,
+    // otherwise it brightens or darkens the picture itself (on the phone and in OBS)
+    S.evRange = ev ? { min: c.exposureCompensation.min, max: c.exposureCompensation.max, step: c.exposureCompensation.step || 0.1, camera: true } : { min: -2, max: 2, step: 0.1, camera: false };
+    setEv(0, true);
+    $("expLock").hidden = !expManual; $("expLock").textContent = "Lock exposure as it is now";
+    // exposureTime is in units of 100 microseconds: 1/50 s = 200
+    shutterList = shut ? SHUTTERS.filter(function (x) { var t = 10000 / x; return t >= c.exposureTime.min && t <= c.exposureTime.max; }) : [];
+    $("shutBox").hidden = !shutterList.length; $("shutHint").hidden = !shutterList.length;
+    if (shutterList.length) { setRange($("shutter"), { min: 0, max: shutterList.length - 1, step: 1 }, shutterList.indexOf(50) >= 0 ? shutterList.indexOf(50) : 0); $("shutVal").textContent = "Auto"; }
+    $("isoBox").hidden = !iso; if (iso) { setRange($("iso"), { min: c.iso.min, max: Math.min(c.iso.max, 3200), step: c.iso.step || 50 }, s.iso || c.iso.min); $("isoVal").textContent = "Auto"; }
+    $("expNa").hidden = ev || expManual;
+
+    // focus and torch
+    var fm = c.focusMode || [];
+    var focusOk = has(fm, "continuous") && (has(fm, "manual") || has(fm, "single-shot"));
+    $("focusBtn").disabled = !focusOk; $("focusBtn").classList.remove("on"); $("focusBtn").textContent = "Focus: auto";
+    $("torchBtn").disabled = !c.torch; $("torchBtn").classList.remove("on");
+    $("focusNa").hidden = focusOk || c.torch;
+    $("focusNa").textContent = "This phone's browser does not allow focus lock or the torch.";
+    showGot();
+  }
+
+  function wbPick(k) {
+    Array.prototype.forEach.call($("wbChips").children, function (b) { b.classList.toggle("on", b.dataset.k === String(k)); });
+    if (k === "auto") { apply({ whiteBalanceMode: "continuous" }); $("kVal").textContent = "Auto"; return; }
+    $("kelvin").value = k; $("kVal").textContent = k + "K";
+    apply({ whiteBalanceMode: "manual", colorTemperature: +k });
+  }
+  Array.prototype.forEach.call($("wbChips").children, function (b) { b.onclick = function () { wbPick(b.dataset.k); }; });
+  $("kelvin").oninput = function () {
+    var k = Math.round(+this.value / 50) * 50; $("kVal").textContent = k + "K";
+    Array.prototype.forEach.call($("wbChips").children, function (b) { b.classList.toggle("on", b.dataset.k === String(k)); });
+    apply({ whiteBalanceMode: "manual", colorTemperature: k });
+  };
+  $("wbLock").onclick = function () {
+    var locked = this.textContent.indexOf("Back") === 0;
+    if (locked) { wbPick("auto"); this.textContent = "Lock white balance as it is now"; return; }
+    apply({ whiteBalanceMode: "manual" });
+    Array.prototype.forEach.call($("wbChips").children, function (b) { b.classList.remove("on"); });
+    $("kVal").textContent = "Locked"; this.textContent = "Back to auto white balance";
+  };
+
+  function expManualOn(label) { $("expLock").textContent = "Back to auto exposure"; if (label) $("shutVal").textContent = label; }
+  $("expLock").onclick = function () {
+    if (this.textContent.indexOf("Back") === 0) {
+      apply({ exposureMode: "continuous" }); this.textContent = "Lock exposure as it is now";
+      $("shutVal").textContent = "Auto"; $("isoVal").textContent = "Auto"; return;
+    }
+    apply({ exposureMode: "manual" }); expManualOn("Locked");
+  };
+  $("shutter").oninput = function () {
+    var x = shutterList[+this.value]; if (!x) return;
+    $("shutVal").textContent = "1/" + x; expManualOn();
+    apply({ exposureMode: "manual", exposureTime: 10000 / x });
+  };
+  $("iso").oninput = function () { $("isoVal").textContent = Math.round(+this.value); expManualOn(); apply({ exposureMode: "manual", iso: +this.value }); };
+
+  $("focusBtn").onclick = function () {
+    var fm = caps().focusMode || [];
+    S.focusLocked = !S.focusLocked;
+    apply({ focusMode: S.focusLocked ? (has(fm, "manual") ? "manual" : "single-shot") : "continuous" });
+    this.classList.toggle("on", S.focusLocked); this.textContent = S.focusLocked ? "Focus: locked" : "Focus: auto";
+  };
+  $("torchBtn").onclick = function () { S.torch = !S.torch; apply({ torch: S.torch }); this.classList.toggle("on", S.torch); };
+  $("flipBtn").onclick = function () {
+    S.facing = S.facing === "environment" ? "user" : "environment"; store.set("lens", S.facing);
+    getCamera().catch(function () {});
+  };
+  // ---- lens settings in mm, like a cinema camera (35 mm film sizes; 24mm = the main lens) ----
+  var LENSES = [24, 35, 50, 85, 105, 150, 200];
+  function zoomFor(mm) { return S.mainZoom * mm / 24; }
+  function buildLenses() {
+    var box = $("lenses"), r = S.zoomRange;
+    box.innerHTML = "";
+    if (r) LENSES.forEach(function (mm) {
+      var z = zoomFor(mm);
+      if (z < r.min * 0.98 || z > r.max * 1.02) return; // this phone can't reach it
+      var b = document.createElement("button"); b.type = "button"; b.dataset.mm = mm;
+      b.innerHTML = mm + "<small>mm</small>";
+      b.onclick = function () { setLens(mm); showZoom(); };
+      box.appendChild(b);
+    });
+    box.hidden = !box.children.length;
+  }
+  function setZoom(z) {
+    S.zoom = Math.max(S.zoomRange.min, Math.min(S.zoomRange.max, z));
+    S.mm = Math.round(24 * S.zoom / S.mainZoom); store.set("mm." + S.facing, S.mm);
+    apply({ zoom: S.zoom });
+    clearTimeout(S.mmTimer); S.mmTimer = setTimeout(sendStatus, 800); // the media computer page shows the lens
+    Array.prototype.forEach.call($("lenses").children, function (b) { var m = +b.dataset.mm; b.classList.toggle("on", Math.abs(m - S.mm) <= m * 0.03); });
+  }
+  function setLens(mm) { if (S.zoomRange) setZoom(zoomFor(mm)); }
+
+  // ---- always landscape: nothing is turned ----
+  // With the iPhone rotation lock off, a phone held sideways sends a landscape picture by itself.
+  // An upright phone sends a tall picture: OBS shows its middle part in landscape, and the phone
+  // shows that same part with a hint to hold it sideways.
+  function frameIsPortrait() { var v = $("video"); return v.videoWidth > 0 && v.videoHeight > v.videoWidth; }
+  function updateFrame() {
+    var tall = frameIsPortrait();
+    $("cam").classList.toggle("tall", tall);
+    $("rotate").hidden = $("cam").hidden || !tall;
+    showRes();
+  }
+  window.addEventListener("resize", function () { setTimeout(updateFrame, 250); });
+  $("video").addEventListener("resize", updateFrame);
+  $("video").addEventListener("loadedmetadata", updateFrame);
+
+  // OBS brightens the picture when the camera itself can't
+  var lookTimer = null;
+  function sendLook() {
+    if (lookTimer) return;
+    lookTimer = setTimeout(function () {
+      lookTimer = null;
+      if (S.sig && S.sig.id) S.sig.post("/look", { look: { gain: S.evRange && !S.evRange.camera ? S.ev : 0 } });
+    }, 80);
+  }
+
+  // ---- brightness line on the right of the screen ----
+  S.ev = 0;
+  function setEv(v, quiet) {
+    var r = S.evRange || { min: -2, max: 2, step: 0.1, camera: false };
+    v = Math.max(r.min, Math.min(r.max, Math.round(v / r.step) * r.step));
+    S.ev = v;
+    $("evLine").hidden = false;
+    var pct = (r.max - v) / (r.max - r.min) * 100;
+    $("evKnob").style.top = pct + "%";
+    $("evShow").textContent = (v > 0 ? "+" : "") + v.toFixed(1);
+    if (r.camera) { if (!quiet) apply({ exposureCompensation: v }); $("video").style.filter = ""; }
+    else { $("video").style.filter = v ? "brightness(" + Math.pow(2, v / 2).toFixed(3) + ")" : ""; if (!quiet) sendLook(); }
+  }
+
+  // ---- touches: drag on the right third = brightness, pinch = zoom, tap = hide buttons ----
+  var touch = { mode: null, start: null, ev0: 0, zoom0: 1, d0: 0, moved: false, lastTap: 0 };
+  function dist(t) { return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY); }
+  function inEvArea(x) { return x > window.innerWidth * 0.7; } // right 30% of the screen
+  var zoomHide = null;
+  function showZoom() {
+    $("zoomChip").textContent = S.mm + "mm"; $("zoomChip").hidden = false;
+    clearTimeout(zoomHide); zoomHide = setTimeout(function () { $("zoomChip").hidden = true; }, 1200);
+  }
+  $("touch").addEventListener("touchstart", function (e) {
+    var t = e.touches;
+    if (t.length === 2) { touch.mode = "zoom"; touch.d0 = dist(t); touch.zoom0 = S.zoom; touch.moved = true; return; }
+    if (t.length !== 1) return;
+    touch.start = { x: t[0].clientX, y: t[0].clientY }; touch.moved = false;
+    touch.mode = inEvArea(t[0].clientX) ? "ev" : "tap"; touch.ev0 = S.ev;
+  }, { passive: true });
+  $("touch").addEventListener("touchmove", function (e) {
+    var t = e.touches;
+    if (touch.mode === "zoom" && t.length === 2) {
+      if (!S.zoomRange) { $("zoomChip").textContent = "Zoom not available on this phone"; $("zoomChip").hidden = false; return; }
+      setZoom(touch.zoom0 * dist(t) / touch.d0); showZoom(); return;
+    }
+    if (touch.mode === "ev" && t.length === 1) {
+      var dy = t[0].clientY - touch.start.y, r = S.evRange, len = window.innerHeight * 0.56;
+      if (Math.abs(dy) > 4) { touch.moved = true; document.body.classList.add("dragging"); }
+      setEv(touch.ev0 - dy / len * (r.max - r.min));
+    }
+  }, { passive: true });
+  $("touch").addEventListener("touchend", function (e) {
+    document.body.classList.remove("dragging");
+    if (e.touches.length) return;
+    var now = Date.now();
+    if (!touch.moved && touch.mode === "ev" && now - touch.lastTap < 350) setEv(0);
+    else if (!touch.moved && touch.mode === "tap" && S.tally !== "live" && $("sheet").hidden) document.body.classList.toggle("hideui");
+    touch.lastTap = now; touch.mode = null;
+  });
+  // mouse wheel / trackpad for testing on a computer
+  $("touch").addEventListener("wheel", function (e) {
+    if (!S.zoomRange) return;
+    setZoom(S.zoom * (e.deltaY < 0 ? 1.1 : 0.9)); showZoom();
+  }, { passive: true });
+  function openSheet(open) { $("sheet").hidden = !open; $("setBtn").setAttribute("aria-expanded", String(open)); $("setBtn").classList.toggle("on", open); }
+  $("setBtn").onclick = function () { openSheet($("sheet").hidden); };
+  $("sheetClose").onclick = function () { openSheet(false); };
+  function changePicture() {
+    S.quality = $("qualityLive").value; S.fps = $("fpsLive").value;
+    store.set("quality", S.quality); store.set("fps", S.fps);
+    $("gotRes").textContent = "Changing…";
+    getCamera().then(function () { Object.keys(S.peers).forEach(function (id) { tuneSender(S.peers[id]); }); })
+      .catch(function () { $("gotRes").textContent = "This phone could not switch to that. Try a lower setting."; });
+  }
+  $("qualityLive").onchange = changePicture; $("fpsLive").onchange = changePicture;
+  function showGot() {
+    var s = settings(); if (!s.width) return;
+    var long = Math.max(s.width, s.height), short = Math.min(s.width, s.height), fps = Math.round(s.frameRate || 0);
+    var msg = "The phone is giving " + long + "×" + short + (fps ? " at " + fps + " fps" : "") + ".";
+    if (short < +S.quality - 8) msg += " This phone's browser does not offer " + (S.quality === "2160" ? "4K" : S.quality + "p") + ", so it uses the best it has.";
+    if (fps && fps < +S.fps - 1) msg += " It cannot do " + S.fps + " fps here.";
+    $("gotRes").textContent = msg;
+  }
+
+  // shows the picture as OBS will get it (the landscape middle part of a tall picture)
+  function showRes() {
+    var s = settings(), v = $("video"), w = v.videoWidth || s.width, h = v.videoHeight || s.height;
+    if (h > w) h = Math.round(w * 9 / 16);
+    var fps = sm.cam > 1 ? sm.cam : s.frameRate; // what the camera really makes, once measured
+    $("res").textContent = w ? w + "×" + h + (fps ? " · " + Math.round(fps) + "fps" : "") : "";
+  }
+
+  function sendStatus() {
+    if (!S.sig || !S.sig.id) return;
+    var s = settings(), st = { width: s.width, height: s.height, mm: S.zoomRange ? S.mm : null, fps: s.frameRate, facing: S.facing, quality: S.quality, ua: navigator.userAgent.slice(0, 160) };
+    // the frames the camera really makes, and what goes to OBS (size after any step down, frames, codec)
+    if (sm.cam > 1) { st.camFps = Math.round(sm.cam); st.want = wantFps(); }
+    var main = Object.keys(S.peers).map(function (id) { return S.peers[id]; }).filter(function (p) { return p.kind === "view" && p.info; })[0];
+    if (main) st.sent = main.info;
+    var done = function () { S.sig && S.sig.post("/status", { status: st }); };
+    if (navigator.getBattery) navigator.getBattery().then(function (b) {
+      st.battery = Math.round(b.level * 100); st.charging = b.charging;
+      $("batt").textContent = (b.charging ? "⚡ " : "🔋 ") + st.battery + "%";
+      done();
+    }).catch(done); else done();
+  }
+
+  // ---- keep the screen on, full screen ----
+  function keepAwake() {
+    if (!("wakeLock" in navigator)) return;
+    navigator.wakeLock.request("screen").then(function (w) { S.wake = w; }).catch(function () {});
+  }
+  function goFullscreen() {
+    var el = document.documentElement;
+    if (el.requestFullscreen) el.requestFullscreen({ navigationUI: "hide" }).then(function () {
+      if (screen.orientation && screen.orientation.lock) screen.orientation.lock("landscape").catch(function () {});
+    }).catch(function () {});
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden || !S.sig) return;
+    keepAwake();
+    if (!S.track || S.track.readyState === "ended") restartCamera();
+  });
+})();
+</script>
+</body>
+</html>

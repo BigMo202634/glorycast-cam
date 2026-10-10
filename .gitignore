@@ -1,0 +1,21 @@
+# Android build output
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/app/stdout
+*.iml
+.idea/
+.kotlin/
+
+# signing keys never go in this repository
+*.jks
+*.keystore
+*.p12
+*key.properties
+
+# packaging output
+*.zip
+runtime/
+node_modules/
+.DS_Store
