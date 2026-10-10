@@ -1,0 +1,7 @@
+file=GloryCast-Cam-unsigned.apk
+version=1.0.0
+build=2
+commit=b26e1f06ba8915b232639a46f0fca17a6393cdfc
+built=2026-10-10T09:43:28Z
+sha256=4622004a2aef936480f16cd68836d1851cc1f68b8e39e525b4834db4cdd6c97c
+bytes=11116825
