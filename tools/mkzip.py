@@ -6,6 +6,11 @@ tmp = out + ".tmp"
 with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
     for root, dirs, files in os.walk(src):
         dirs.sort()
+        # Folder entries too, as a Mac's own zips have, so Finder sees GloryCast Cam.app as an app when unzipped.
+        d = os.path.relpath(root, base).replace(os.sep, "/") + "/"
+        zd = zipfile.ZipInfo(d, zipfile.ZipInfo.from_file(root, d).date_time)
+        zd.external_attr = (0o040755 << 16) | 0x10
+        z.writestr(zd, b"")
         for f in sorted(files):
             p = os.path.join(root, f); arc = os.path.relpath(p, base)
             zi = zipfile.ZipInfo.from_file(p, arc)
