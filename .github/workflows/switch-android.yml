@@ -1,0 +1,75 @@
+name: Switch Android app
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "switch-android/**"
+      - ".github/workflows/switch-android.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: switch-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build the APK
+        working-directory: switch-android
+        run: ./gradlew --no-daemon --stacktrace assembleRelease
+
+      - name: Check Android version support (never blocks the APK)
+        working-directory: switch-android
+        continue-on-error: true
+        run: |
+          ./gradlew --no-daemon lintRelease
+          if [ -f app/stdout ]; then cat app/stdout; fi
+
+      - name: Collect the APK
+        run: |
+          mkdir -p out
+          apk=$(ls switch-android/app/build/outputs/apk/release/*.apk | head -n 1)
+          name=GloryCast-Switch-unsigned.apk
+          cp "$apk" "out/$name"
+          {
+            echo "file=$name"
+            echo "version=$(grep -m1 'versionName' switch-android/app/build.gradle.kts | sed 's/.*"\(.*\)".*/\1/')"
+            echo "build=${GITHUB_RUN_NUMBER}"
+            echo "commit=${GITHUB_SHA}"
+            echo "built=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "sha256=$(sha256sum "out/$name" | cut -d' ' -f1)"
+            echo "bytes=$(stat -c %s "out/$name")"
+          } > out/version.txt
+          cat out/version.txt
+
+      - name: Put the APK on the apk-switch branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd out
+          git init -q -b apk-switch
+          git add .
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Switch Android app from ${GITHUB_SHA::7} (build ${GITHUB_RUN_NUMBER})"
+          git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" apk-switch
+
+      - uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: GloryCast-Switch-android
+          path: out/

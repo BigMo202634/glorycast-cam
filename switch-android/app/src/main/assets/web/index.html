@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="GC Switch">
+<title>GloryCast Switch</title>
+<link rel="icon" href="img/icon-navy.svg">
+<link rel="apple-touch-icon" href="img/icon-180.png">
+<link rel="manifest" href="manifest.json">
+<style>
+  @font-face { font-family: "Montserrat"; src: url("fonts/Montserrat-VF.ttf") format("truetype"); font-weight: 100 900; }
+  :root { --navy: #0F1E3D; --navy-2: #172A50; --navy-3: #22396A; --line: #2C4475; --gold: #C9A227; --text: #EEF2FA; --muted: #9BA9C6;
+          --pgm: #E5383B; --pvw: #2FBF71; --bg: #000; --gap: 6px; --monH: 45vh; --cols: 4; --rows: 2; --arw: 16; --arh: 9; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body { background: var(--bg); color: var(--text); font: 13px/1.3 "Montserrat", system-ui, sans-serif; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+         padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  button, input, select { font: inherit; color: inherit; }
+  button { background: var(--navy-3); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; cursor: pointer; font-weight: 700; touch-action: manipulation; }
+  button:active { transform: scale(.96); }
+  input, select { background: #070F24; border: 1px solid var(--line); border-radius: 8px; padding: 10px; width: 100%; }
+  .grow { flex: 1; }
+
+  /* Multiview: Preview | Live on top, cameras below, controls down the right side. */
+  #wrap { height: 100%; display: grid; gap: var(--gap); padding: var(--gap);
+          grid-template-columns: minmax(0, 1fr) 92px; grid-template-rows: auto 14px minmax(0, 1fr); }
+  #monitors { grid-column: 1; grid-row: 1; display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); }
+  body.direct #monitors { grid-template-columns: 1fr; }
+  body.direct #pvwMon { display: none; }
+  .mon { position: relative; background: #111; aspect-ratio: var(--arw) / var(--arh); width: min(100%, calc(var(--monH) * var(--arw) / var(--arh))); justify-self: center; border: 3px solid #333; overflow: hidden; }
+  #pgmMon { border-color: var(--pgm); } #pvwMon { border-color: var(--pvw); }
+  .mon img, .tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
+  .mon img:not([src]), .tile img:not([src]) { visibility: hidden; }
+  .tag { position: absolute; left: 0; top: 0; font-size: 10px; font-weight: 800; letter-spacing: .08em; padding: 2px 7px; color: #fff; }
+  #pgmMon .tag { background: var(--pgm); } #pvwMon .tag { background: var(--pvw); }
+  .mon .name { position: absolute; left: 0; right: 0; bottom: 0; padding: 3px 8px; font-weight: 700; font-size: 12px; text-align: center;
+               background: rgba(0,0,0,.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Drag bar: pull up for bigger cameras, down for bigger Preview and Live. */
+  #split { grid-column: 1; grid-row: 2; display: flex; align-items: center; justify-content: center; cursor: row-resize; touch-action: none; }
+  #split::before { content: ""; width: 54px; height: 5px; border-radius: 3px; background: #3A4A6A; }
+  #split.drag::before { background: var(--gold); }
+  /* Camera channels: a fixed grid (4 x 2 for 8) that always fits, each picture whole (16:9, nothing cut off). */
+  #grid { grid-column: 1; grid-row: 3; display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); grid-template-rows: repeat(var(--rows), minmax(0, 1fr));
+          gap: var(--gap); container-type: size; place-items: center; overflow: hidden; min-height: 0; }
+  #grid .tile { width: min(100%, calc((100cqh - (var(--rows) - 1) * var(--gap)) / var(--rows) * var(--arw) / var(--arh))); }
+  .tile.empty { border-style: dashed; color: #444; font-size: 11px; pointer-events: none; }
+  .tile.empty .label { background: transparent; color: #555; }
+  .tile { position: relative; padding: 0; border: 3px solid #333; border-radius: 0; overflow: hidden; background: #111; aspect-ratio: var(--arw) / var(--arh); }
+  .tile .pic { position: absolute; inset: 0; }
+  .tile .num { position: absolute; left: 0; top: 0; background: rgba(0,0,0,.7); font-size: 10px; padding: 1px 6px; }
+  .tile .badge { position: absolute; right: 0; top: 0; font-size: 9px; font-weight: 800; letter-spacing: .06em; padding: 2px 5px; color: #fff; display: none; }
+  .tile .label { position: absolute; left: 0; right: 0; bottom: 0; padding: 2px 5px; font-weight: 700; font-size: 11px; text-align: center;
+                 background: rgba(0,0,0,.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile.pvw { border-color: var(--pvw); } .tile.pvw .badge { display: block; background: var(--pvw); }
+  .tile.next .badge { display: block; background: var(--gold); color: var(--navy); } /* goes live when the fade running now ends */
+  .tile.pgm { border-color: var(--pgm); } .tile.pgm .badge { display: block; background: var(--pgm); }
+  .tile.pgm .label { background: rgba(160,20,30,.85); }
+  .tile.busy { opacity: .6; }
+  /* A GloryCast Cam phone running low: chip on its channel, warning across the top. */
+  .tile .batt { position: absolute; right: 0; top: 0; font-size: 9px; font-weight: 800; padding: 2px 5px; background: #F2B33D; color: #1A1200; }
+  .tile.pgm .batt, .tile.pvw .batt, .tile.next .batt { top: 16px; }
+  .tile .batt.red { background: var(--pgm); color: #fff; animation: battPulse .8s ease-in-out infinite alternate; }
+  .tile .batt[hidden] { display: none; }
+  @keyframes battPulse { to { opacity: .4; } }
+  #battWarn { position: fixed; z-index: 9; left: 50%; top: calc(env(safe-area-inset-top) + 8px); transform: translateX(-50%); width: min(560px, calc(100% - 16px));
+              display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 12px; border-radius: 10px; background: #F2B33D; color: #1A1200;
+              font-size: 13px; font-weight: 600; box-shadow: 0 6px 24px rgba(0,0,0,.6); cursor: pointer; }
+  #battWarn.red { background: var(--pgm); color: #fff; }
+  #battWarn[hidden] { display: none; }
+  #battText { flex: 1; }
+  #battWarn button { flex: none; background: rgba(0,0,0,.22); border-color: transparent; color: inherit; padding: 8px 14px; }
+  #empty { color: var(--muted); padding: 20px; text-align: center; grid-column: 1 / -1; aspect-ratio: auto; }
+
+  #side { grid-column: 2; grid-row: 1 / span 3; display: flex; flex-direction: column; gap: var(--gap); overflow: auto; min-height: 0; }
+  #side .top { display: flex; gap: 4px; align-items: center; }
+  #settingsBtn { flex: 1; padding: 6px; font-size: 16px; }
+  #state { width: 12px; height: 12px; border-radius: 50%; background: var(--muted); font-size: 0; flex: none; }
+  #state.on { background: var(--pvw); } #state.bad { background: var(--pgm); }
+  #onair { display: none; background: var(--pgm); color: #fff; font-size: 10px; font-weight: 800; padding: 3px; letter-spacing: .08em; text-align: center; border-radius: 4px; }
+  #onair.on { display: block; }
+  .tile.nopic .pic::after { content: "No picture from OBS"; position: absolute; left: 0; right: 0; top: 45%; text-align: center; font-size: 10px; color: #777; }
+  #progWarn { background: #5A1A22; border-color: var(--pgm); color: #fff; font-size: 10px; padding: 6px 3px; line-height: 1.2; }
+  #progWarn[hidden] { display: none; }
+  #sheet .check { display: flex; gap: 10px; align-items: flex-start; color: var(--text); font-size: 14px; margin: 0; }
+  #sheet .check input { width: 22px; height: 22px; flex: none; margin-top: 1px; }
+  #modeSeg { display: flex; flex-direction: column; gap: 3px; background: #0A0F1E; border: 1px solid var(--line); border-radius: 8px; padding: 3px; }
+  #modeSeg button { border: 0; background: transparent; padding: 6px 2px; font-size: 10px; border-radius: 6px; color: var(--muted); line-height: 1.15; }
+  #modeSeg button.on { background: var(--gold); color: var(--navy); }
+  #trans { display: flex; flex-direction: column; gap: 4px; }
+  #trans .lbl { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; text-align: center; }
+  #transBtns { display: flex; flex-direction: column; gap: 4px; }
+  #trans button { padding: 6px 2px; font-size: 11px; }
+  #trans button.on { background: var(--gold); color: var(--navy); border-color: var(--gold); }
+  #dur { padding: 5px 2px; font-size: 11px; text-align: center; }
+  #doneBtn { display: none; background: var(--gold); color: var(--navy); border-color: var(--gold); font-size: 15px; min-height: 52px; }
+  body.arranging #doneBtn { display: block; }
+  body.arranging #cutBtn, body.arranging #autoBtn, body.arranging #trans, body.arranging #modeSeg { display: none; }
+  body.arranging .tile { border-color: var(--gold) !important; border-style: dashed; pointer-events: auto; }
+  .tile .change { display: none; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -60%); background: var(--gold); color: var(--navy);
+                  font-size: 10px; font-weight: 800; padding: 3px 7px; border-radius: 5px; white-space: nowrap; }
+  body.arranging .tile .change { display: block; }
+  #arrangeHint { display: none; grid-column: 1; grid-row: 2; text-align: center; color: var(--gold); font-size: 11px; font-weight: 700; align-self: center; }
+  body.arranging #arrangeHint { display: block; } body.arranging #split { display: none; }
+  #picker { position: fixed; inset: 0; background: rgba(3,8,20,.75); display: none; align-items: center; justify-content: center; z-index: 11; }
+  #picker.open { display: flex; }
+  #picker .box { background: var(--navy); border: 1px solid var(--line); border-radius: 14px; width: min(420px, 92vw); max-height: 88vh; overflow: auto; padding: 12px; }
+  #picker h2 { margin: 0 0 8px; font-size: 16px; display: flex; align-items: center; }
+  #pickList { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+  #pickList button { text-align: left; display: flex; flex-direction: column; gap: 2px; }
+  #pickList button small { font-size: 10px; color: var(--muted); font-weight: 600; }
+  #pickList button.on { background: var(--gold); color: var(--navy); } #pickList button.on small { color: var(--navy); }
+  #sheet .actions { display: flex; gap: 8px; } #sheet .actions button { flex: 1; }
+  #cutBtn, #autoBtn { font-size: 15px; letter-spacing: .08em; padding: 0; min-height: 52px; flex: 1; max-height: 90px; }
+  #cutBtn { background: #3A1420; border-color: var(--pgm); }
+  #autoBtn { background: var(--gold); color: var(--navy); border-color: var(--gold); }
+  body.direct #cutBtn, body.direct #autoBtn { display: none; }
+  #turn { display: none; }
+
+  /* Phone held upright: same picture order, controls in a strip under the monitors. */
+  @media (orientation: portrait) {
+    #wrap { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto 14px auto minmax(0, 1fr); }
+    #turn { display: block; grid-row: 1; text-align: center; color: var(--muted); font-size: 11px; padding: 2px; }
+    #monitors { grid-row: 2; }
+    #split, #arrangeHint { grid-row: 3; }
+    #side { grid-column: 1; grid-row: 4; flex-direction: row; flex-wrap: wrap; overflow: visible; }
+    #side .top { order: 0; }
+    #onair { align-self: center; padding: 4px 8px; }
+    #modeSeg { flex-direction: row; }
+    #modeSeg button { padding: 7px 8px; font-size: 11px; }
+    #trans, #transBtns { flex-direction: row; align-items: center; }
+    #cutBtn, #autoBtn { min-height: 48px; flex: 1 1 40%; }
+    #grid { grid-row: 5; }
+  }
+  #sheet { position: fixed; inset: 0; background: rgba(3,8,20,.7); display: none; align-items: flex-end; justify-content: center; z-index: 10; }
+  #sheet.open { display: flex; }
+  #sheet .box { background: var(--navy); border: 1px solid var(--line); border-radius: 16px 16px 0 0; width: min(560px, 100%); max-height: 92vh; overflow: auto; padding: 16px 16px 24px; user-select: text; }
+  #sheet h2 { margin: 0 0 12px; font-size: 18px; display: flex; align-items: center; }
+  #sheet h3 { margin: 18px 0 8px; font-size: 13px; color: var(--gold); text-transform: uppercase; letter-spacing: .08em; }
+  #sheet label { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
+  #sheet .row { display: flex; gap: 8px; }
+  #sheet .row > * { flex: 1; }
+  #phoneLink { background: var(--bg); border: 1px dashed var(--gold); border-radius: 10px; padding: 10px; font-size: 16px; font-weight: 700; word-break: break-all; }
+  #sceneChecks label { display: flex; align-items: center; gap: 10px; color: var(--text); font-size: 14px; margin: 0; padding: 7px 0; border-bottom: 1px solid var(--line); }
+  #sceneChecks input { width: 20px; height: 20px; }
+  .hint { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+  #msg { color: var(--muted); font-size: 12px; margin-top: 8px; min-height: 1em; }
+  #connectBtn { background: var(--gold); color: var(--navy); border-color: var(--gold); margin-top: 10px; width: 100%; }
+  #findBtn { margin-top: 8px; width: 100%; }
+</style>
+</head>
+<body class="direct">
+<div id="wrap">
+  <div id="turn">Turn your phone sideways for the full switcher</div>
+  <section id="monitors">
+    <div class="mon" id="pvwMon"><img alt=""><span class="tag">PREVIEW</span><div class="name"></div></div>
+    <div class="mon" id="pgmMon"><img alt=""><span class="tag">LIVE</span><div class="name"></div></div>
+  </section>
+  <div id="split" title="Drag to resize"></div>
+  <div id="arrangeHint">Tap a channel to choose its camera. Tap DONE when finished.</div>
+  <section id="grid"><div id="empty">Link to OBS to see your cameras. Tap &#9881; to set up.</div></section>
+  <aside id="side">
+    <div class="top"><span id="state">Not linked</span><button id="settingsBtn" aria-label="Settings">&#9881;</button></div>
+    <div id="onair">ON AIR</div>
+    <button id="progWarn" hidden>OBS is off Program. Tap to fix</button>
+    <div id="modeSeg" title="How a tap on a camera works">
+      <button data-mode="direct" class="on">TAP =<br>LIVE</button>
+      <button data-mode="studio">PREVIEW<br>FIRST</button>
+    </div>
+    <div id="trans"><span class="lbl">Change</span><span id="transBtns"></span>
+      <select id="dur" title="Fade length">
+        <option value="300">0.3 s</option><option value="500">0.5 s</option><option value="1000">1 s</option><option value="1500">1.5 s</option>
+        <option value="2000">2 s</option><option value="3000">3 s</option><option value="4000">4 s</option><option value="5000">5 s</option>
+        <option value="7000">7 s</option><option value="10000">10 s</option><option value="15000">15 s</option><option value="20000">20 s</option>
+        <option value="other">Other...</option>
+      </select>
+    </div>
+    <button id="doneBtn">DONE</button>
+    <button id="cutBtn" title="Enter">CUT</button>
+    <button id="autoBtn" title="Space">AUTO</button>
+  </aside>
+</div>
+
+<div id="battWarn" role="alert" hidden><span id="battText"></span><button>OK</button></div>
+
+<div id="sheet">
+  <div class="box">
+    <h2><span class="grow">Settings</span><button id="sheetClose">Done</button></h2>
+    <div id="phoneBox" hidden>
+      <h3>Open on your phone</h3>
+      <div id="phoneLink"></div>
+      <p class="hint" id="nameHint" hidden>The first link stays the same even when this computer's number changes. If it does not open on a phone (some Android phones), use the number link.</p>
+      <p class="hint">Phone and this computer must be on the same Wi-Fi. If Windows asks about the firewall for OBS, allow Private networks.</p>
+      <button id="stopBtn" hidden>Stop GloryCast Switch</button>
+      <p class="hint" id="stopHint" hidden>Phones lose Switch until you open the GloryCast Switch app again.</p>
+    </div>
+    <h3>OBS link</h3>
+    <div class="row">
+      <div><label for="host">OBS computer address</label><input id="host" inputmode="decimal" placeholder="192.168.0.10"></div>
+      <div style="flex:.45"><label for="port">Port</label><input id="port" inputmode="numeric" placeholder="4455"></div>
+    </div>
+    <label for="pw">OBS WebSocket password</label><input id="pw" type="password" autocomplete="off">
+    <p class="hint">In OBS: Tools &gt; WebSocket Server Settings &gt; Enable, then Show Connect Info for the password.</p>
+    <button id="connectBtn">Link to OBS</button>
+    <button id="findBtn" hidden>Find OBS on this Wi-Fi</button>
+    <div id="msg"></div>
+    <h3>Stream</h3>
+    <label class="check"><input type="checkbox" id="progMode"><span>Stream from one <b>GloryCast Program</b> scene</span></label>
+    <p class="hint">Switch makes a scene called GloryCast Program in OBS with your channel cameras inside it, and switches cameras within it. Add your logo, Bible and hymn display and lower thirds at the top of that scene once; they stay on whichever camera is live. Fades work by themselves: pick Fade and a length (up to 20 s).</p>
+    <p class="hint">OBS streams GloryCast On Air (it holds GloryCast Program) with Studio Mode on, so you can click any scene in OBS and add things to it in Preview while the service is live. Leave OBS's Transition button alone; the phone does the switching.</p>
+    <h3>Camera channels</h3>
+    <div class="seg" id="gridSeg"><button data-grid="2x2">2&times;2</button><button data-grid="3x2">3&times;2</button><button data-grid="4x2" class="on">4&times;2</button><button data-grid="3x3">3&times;3</button><button data-grid="4x3">4&times;3</button><button data-grid="6x2">6&times;2</button><button data-grid="4x1">4&times;1</button><button data-grid="6x1">6&times;1</button></div>
+    <p class="hint">Across &times; down. 4&times;2 is 8 channels.</p>
+    <div class="actions" style="margin-top:8px"><button id="arrangeBtn">Arrange channels</button><button id="resetMap">OBS order</button></div>
+    <p class="hint">Arrange: tap a channel, pick its camera (or Empty). You can also hold any channel to start.</p>
+    <h3>Layout</h3>
+    <div class="seg" id="layoutSeg"><button data-mon="58">Big Preview / Live</button><button data-mon="45" class="on">Even</button><button data-mon="26">Big cameras</button></div>
+    <p class="hint">Or drag the little bar between Preview / Live and the cameras.</p>
+    <h3>Picture speed</h3>
+    <div class="seg" id="speedSeg">
+      <button data-speed="saver">Saver</button><button data-speed="normal" class="on">Normal</button><button data-speed="smooth">Smooth</button>
+    </div>
+    <p class="hint">Saver is kinder to an older laptop. The pictures here are for choosing shots; the stream itself is not affected.</p>
+    <p class="hint" id="fps"></p>
+
+  </div>
+</div>
+
+<div id="picker">
+  <div class="box">
+    <h2><span class="grow" id="pickTitle">Channel</span><button id="pickCancel">Cancel</button></h2>
+    <div id="pickList"></div>
+  </div>
+</div>
+
+<script src="js/obs.js"></script>
+<script src="js/switch.js"></script>
+</body>
+</html>

@@ -4,6 +4,11 @@ android/build/
 android/app/build/
 android/local.properties
 android/app/stdout
+switch-android/.gradle/
+switch-android/build/
+switch-android/app/build/
+switch-android/local.properties
+switch-android/app/stdout
 *.iml
 .idea/
 .kotlin/
