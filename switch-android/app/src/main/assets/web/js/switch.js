@@ -54,9 +54,9 @@
   /* ---------- OBS link ---------- */
 
   // In the Android app the page comes from inside the app, so OBS's address is the one the app found on the Wi-Fi.
-  var android = window.GCAndroid || null;
+  var android = window.GCAndroid || null, foundHost = "";
   function defaultHost() {
-    if (android) { try { return android.obsHost() || "127.0.0.1"; } catch (e) { return "127.0.0.1"; } }
+    if (android) { try { return foundHost || android.obsHost() || "127.0.0.1"; } catch (e) { return "127.0.0.1"; } }
     var h = location.hostname;
     return location.protocol.indexOf("http") === 0 && h && h !== "localhost" ? h : "127.0.0.1";
   }
@@ -746,7 +746,7 @@
     $("findBtn").disabled = false;
     if (auto && (store.get("host", "") || (obs && (obs.ready || ip === linkHost)))) return;
     if (!ip) { if (!auto) $("msg").textContent = "OBS not found on this Wi-Fi. Check OBS is open with its WebSocket server on (port " + (store.get("port", "") || "4455") + "), or type its address."; return; }
-    store.set("host", ""); $("host").value = ip;
+    foundHost = ip; store.set("host", ""); $("host").value = ip;
     if (!auto) $("msg").textContent = "Found OBS at " + ip + ".";
     connect();
   }
