@@ -1,0 +1,7 @@
+file=GloryCast-Switch-unsigned.apk
+version=1.0.1
+build=3
+commit=c718294195cca33e19613b4dc32c042c7ceea30e
+built=2026-10-27T23:53:15Z
+sha256=2a94d554d946012f9a4356e53359faf2484a5904a74194372a61ad3136890a1e
+bytes=1118042
