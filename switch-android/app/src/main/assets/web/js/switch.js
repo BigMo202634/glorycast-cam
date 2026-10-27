@@ -848,6 +848,13 @@
     else if (e.key === " ") { e.preventDefault(); auto(); }
   });
 
+  // Back from a locked screen, another app or a Wi-Fi drop: link to OBS again at once.
+  function wake() { if (obs && !document.hidden) obs.wake(); }
+  document.addEventListener("visibilitychange", wake);
+  window.addEventListener("pageshow", wake);
+  window.addEventListener("focus", wake);
+  window.addEventListener("online", wake);
+
   phoneLink();
   if (store.get("linked", false) || location.hostname !== "localhost") connect();
   else openSheet();

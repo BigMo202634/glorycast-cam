@@ -63,19 +63,32 @@
 
   OBSClient.prototype.status = function (s, detail) { if (this.opts.onStatus) this.opts.onStatus(s, detail); };
 
+  // A phone can lose OBS without being told: Wi-Fi drops for a moment, or the screen locks and the browser
+  // pauses the page. Then a link attempt can hang for a minute, or a link that looks open hears nothing.
+  // So a link attempt gets LINK_WAIT ms to finish, and a link that hears nothing from OBS for QUIET ms is
+  // asked for OBS's version; one that stays silent for DEAD ms is dropped and made again.
+  var LINK_WAIT = 6000, QUIET = 4000, DEAD = 10000;
+
   OBSClient.prototype.connect = function () {
     var self = this, o = this.opts;
     this.closedByUser = false;
+    clearTimeout(this._t); this._t = null;
+    this._stopWatch();
+    if (this.ws) { var old = this.ws; old.onopen = old.onmessage = old.onclose = old.onerror = null; try { old.close(); } catch (e) {} }
     try { this.ws = new WebSocket(o.url || "ws://127.0.0.1:4455"); }
     catch (e) { this.status("error", e.message); this._retry(); return; }
+    var ws = this.ws;
     this.status("connecting");
-    this.ws.onmessage = function (ev) {
+    this.heard = Date.now();
+    this._watch = setInterval(function () { self._check(ws); }, 1000);
+    ws.onmessage = function (ev) {
+      self.heard = Date.now();
       var msg; try { msg = JSON.parse(ev.data); } catch (e) { return; }
       if (msg.op === 0) { // Hello
         var ident = { rpcVersion: 1, eventSubscriptions: o.events || 0 };
         var auth = msg.d.authentication;
         if (auth) {
-          if (!o.password) { self.status("error", "OBS asks for a password"); self.ws.close(); return; }
+          if (!o.password) { self.status("error", "OBS asks for a password"); ws.close(); return; }
           sha256b64(o.password + auth.salt).then(function (secret) { return sha256b64(secret + auth.challenge); })
             .then(function (a) { ident.authentication = a; self._send(1, ident); });
         } else self._send(1, ident);
@@ -96,22 +109,55 @@
         if (b) { delete self.pending[msg.d.requestId]; b.resolve(msg.d.results || []); }
       }
     };
-    this.ws.onclose = function (ev) {
-      var was = self.ready; self.ready = false;
-      Object.keys(self.pending).forEach(function (k) { self.pending[k].reject(new Error("OBS disconnected")); });
-      self.pending = {};
-      if (ev.code === 4009) self.status("error", "Wrong OBS password");
-      else self.status("disconnected", was ? "OBS closed the connection" : "Cannot reach OBS");
-      if (!self.closedByUser && ev.code !== 4009) self._retry();
-    };
-    this.ws.onerror = function () {};
+    ws.onclose = function (ev) { self._closed(ws, ev.code); };
+    ws.onerror = function () {};
+  };
+
+  // Every second while linking or linked: give up on a stuck link attempt, wake a quiet link, drop a dead one.
+  OBSClient.prototype._check = function (ws) {
+    if (ws !== this.ws) return;
+    var quiet = Date.now() - this.heard;
+    if (!this.ready) { if (quiet > LINK_WAIT) this._drop(ws); return; }
+    // A long fade (up to 20 s) runs on OBS's frame clock and OBS may answer nothing else meanwhile.
+    if (quiet > (this.batches ? DEAD + 25000 : DEAD)) { this._drop(ws); return; }
+    if (quiet > QUIET && !this._pinged) { this._pinged = true; var self = this; this.request("GetVersion").then(function () { self._pinged = false; }, function () { self._pinged = false; }); }
+  };
+  OBSClient.prototype._drop = function (ws) {
+    ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null;
+    try { ws.close(); } catch (e) {}
+    this._closed(ws, 1006);
+  };
+  OBSClient.prototype._stopWatch = function () { clearInterval(this._watch); this._watch = null; this._pinged = false; };
+
+  // Link lost (or never made): tell the page and try again in 3 seconds.
+  OBSClient.prototype._closed = function (ws, code) {
+    var self = this;
+    if (ws !== this.ws) return;
+    this._stopWatch();
+    var was = this.ready; this.ready = false; this.batches = 0;
+    Object.keys(this.pending).forEach(function (k) { self.pending[k].reject(new Error("OBS disconnected")); });
+    this.pending = {};
+    this.badPassword = code === 4009;
+    if (code === 4009) this.status("error", "Wrong OBS password");
+    else this.status("disconnected", was ? "OBS closed the connection" : "Cannot reach OBS");
+    if (!this.closedByUser && code !== 4009) this._retry();
+  };
+
+  // The page is back on screen or the phone is back on the network: link again now instead of waiting,
+  // and check a link that looks open is really alive.
+  OBSClient.prototype.wake = function () {
+    if (this.closedByUser || !this.opts.reconnect) return;
+    if (this.badPassword) return;
+    var quiet = Date.now() - this.heard;
+    if (!this.ready) { if (this.ws && this.ws.readyState <= 1 && !this._t && quiet < LINK_WAIT) return; this.connect(); return; }
+    if (Date.now() - this.heard > QUIET && this.ws) this._check(this.ws);
   };
 
   OBSClient.prototype._retry = function () {
     var self = this;
     if (!this.opts.reconnect) return;
     clearTimeout(this._t);
-    this._t = setTimeout(function () { if (!self.closedByUser) self.connect(); }, 3000);
+    this._t = setTimeout(function () { self._t = null; if (!self.closedByUser) self.connect(); }, 3000);
   };
 
   OBSClient.prototype._send = function (op, d) { if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify({ op: op, d: d })); };
@@ -132,8 +178,10 @@
     var self = this;
     if (!this.ready) return Promise.reject(new Error("OBS not connected"));
     var id = "gc" + (++this.seq);
+    self.batches = (self.batches || 0) + 1;
+    var done = function () { self.batches = Math.max(0, self.batches - 1); };
     return new Promise(function (resolve, reject) {
-      self.pending[id] = { resolve: resolve, reject: reject };
+      self.pending[id] = { resolve: function (v) { done(); resolve(v); }, reject: function (e) { done(); reject(e); } };
       self._send(8, { requestId: id, haltOnFailure: !!haltOnFailure, executionType: executionType || 0,
         requests: requests.map(function (r) { return { requestType: r.requestType, requestData: r.requestData || {} }; }) });
     });
@@ -144,7 +192,7 @@
   OBSClient.prototype.sceneNames = function () {
     return this.request("GetSceneList").then(function (r) { return (r.scenes || []).map(function (s) { return s.sceneName; }).reverse(); });
   };
-  OBSClient.prototype.close = function () { this.closedByUser = true; clearTimeout(this._t); if (this.ws) this.ws.close(); };
+  OBSClient.prototype.close = function () { this.closedByUser = true; clearTimeout(this._t); this._stopWatch(); if (this.ws) this.ws.close(); };
 
   root.OBSClient = OBSClient;
   root.GCsha256b64 = sha256b64;
