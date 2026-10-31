@@ -25,6 +25,15 @@ The download is this repository's `app/`, `server/`, the two Start files and `RE
 `python3 tools/mkzip.py GloryCast-Cam GloryCast-Cam.zip` (the zip tool marks the Mac Start file and the
 app's launcher as runnable).
 
+## Windows install
+
+`Install GloryCast Cam (Windows).bat` runs `runtime\node.exe server\server.js --install` (`server/win-install.js`):
+it copies `app/`, `server/` and Node to `%LOCALAPPDATA%\Programs\GloryCast Cam`, clears the downloaded-file
+mark, makes Start menu and desktop shortcuts to `node.exe server.js --app` (runs in the background like the Mac
+app) with `app/img/icon.ico` (`tools/win-icon.py`), and adds an Uninstall entry under Settings > Apps
+(`--uninstall`). Shortcuts start the OpenJS-signed node.exe, so Smart App Control lets them run; the .bat
+itself may be blocked unless the zip is unblocked first, so the README gives the one-line cmd fallback.
+
 ## Mac app
 
 `GloryCast Cam.app` opens with no Terminal window. Its launcher (a shell script) finds Node.js where the

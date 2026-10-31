@@ -10,13 +10,23 @@ WHAT YOU NEED
   ANDROID APP below).
 - Sound is not sent from the phones. Keep using the mixer into OBS.
 
-START IT (WINDOWS)
-1. Unzip the GloryCast-Cam folder somewhere you keep it (for example Documents).
-2. Double-click "Start GloryCast Cam (Windows).bat".
-3. The first time, Windows asks about the firewall for "Node.js". Tick BOTH Private
+INSTALL IT (WINDOWS)
+1. Right-click GloryCast-Cam-Windows.zip, choose Properties, tick Unblock at the bottom and
+   click OK. Then right-click it again and choose Extract All.
+2. In the unzipped GloryCast-Cam folder, double-click "Install GloryCast Cam (Windows).bat".
+   If Windows says Smart App Control blocked it: click the address bar of the folder, type
+   cmd and press Enter, then paste this line and press Enter:
+       runtime\node.exe server\server.js --install
+3. GloryCast Cam is now in the Start menu and on the desktop, and it opens. You can delete
+   the zip and the unzipped folder.
+4. The first time it opens, Windows asks about the firewall for "Node.js". Tick BOTH Private
    and Public networks and click Allow. (Without this, phones cannot reach the computer.)
-4. A black window opens (leave it open during service) and the GloryCast Cam page
-   opens in your browser with a QR code.
+5. From then on open GloryCast Cam from the Start menu or the desktop icon, like any app.
+   There is no black window: it runs in the background and its page opens in your browser
+   with a QR code. To stop it, click Stop on that page. To remove it: Settings, Apps,
+   Installed apps, GloryCast Cam, Uninstall.
+To run it without installing, double-click "Start GloryCast Cam (Windows).bat" instead and
+keep its black window open during service.
 
 START IT (MAC)
 1. Install Node.js once: nodejs.org, the LTS version.

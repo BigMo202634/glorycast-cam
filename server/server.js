@@ -11,7 +11,7 @@ const { makeCert } = require("./cert");
 const HTTP_PORT = +process.env.GLORYCAST_CAM_PORT || 7795, HTTPS_PORT = HTTP_PORT + 1, FIND_PORT = HTTP_PORT + 2;
 const APP = path.join(__dirname, "..", "app");
 const DATA = process.env.GLORYCAST_CAM_DATA || path.join(os.homedir(), ".glorycast-cam");
-const VERSION = "1.3.3";
+const VERSION = "1.4.0";
 // changes whenever any page file changes, so pages left open in OBS reload to the new version
 const BUILD = (function () {
   const h = crypto.createHash("sha1");
@@ -355,7 +355,7 @@ function openBrowser(u) {
 }
 
 
-// The Mac app starts GloryCast Cam with --app: it runs in the background (no Terminal window) and its
+// The Mac app and the Windows Start menu icon start GloryCast Cam with --app: it runs in the background (no Terminal window) and its
 // page opens. Opening the app again just opens the page; a different version is asked to stop first.
 function startForApp() {
   const ask = (method, p) => new Promise(done => {
@@ -382,7 +382,7 @@ function startForApp() {
     if (!now) {
       fs.mkdirSync(DATA, { recursive: true });
       const logFile = path.join(DATA, "server.log"), log = fs.openSync(logFile, "w");
-      require("child_process").spawn(process.execPath, [__filename], { detached: true, stdio: ["ignore", log, log], cwd: os.homedir() }).unref();
+      require("child_process").spawn(process.execPath, [__filename], { detached: true, stdio: ["ignore", log, log], cwd: os.homedir(), windowsHide: true }).unref();
       fs.closeSync(log);
       now = await until(v => v && v.version === VERSION, 20000);
       if (!now || now.version !== VERSION) return fail("GloryCast Cam could not start. The details are in " + logFile);
@@ -390,5 +390,16 @@ function startForApp() {
     openBrowser("http://localhost:" + HTTP_PORT + "/");
   })();
 }
-if (require.main === module) { if (process.argv.includes("--app")) startForApp(); else start(); }
+// Windows: --install puts GloryCast Cam in the Start menu and on the desktop, then opens it; --uninstall removes it.
+function windowsSetup(how) {
+  const w = require("./win-install");
+  w[how]({ version: VERSION, port: HTTP_PORT }).then(r => {
+    if (r) require("child_process").spawn(r.exe, [r.script, "--app"], { detached: true, stdio: "ignore", cwd: os.homedir(), windowsHide: true }).unref();
+  }, e => { console.log("\n  " + e.message + "\n"); process.exitCode = 2; });
+}
+if (require.main === module) {
+  if (process.argv.includes("--install")) windowsSetup("install");
+  else if (process.argv.includes("--uninstall")) windowsSetup("uninstall");
+  else if (process.argv.includes("--app")) startForApp(); else start();
+}
 module.exports = { start, lanIPs, slug, clients };
