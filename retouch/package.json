@@ -1,0 +1,29 @@
+{
+  "name": "glorycast-retouch",
+  "productName": "GloryCast Retouch",
+  "version": "0.1.0",
+  "description": "Batch photo fixing for church photographers: white garments, faces, skin, crops and logo.",
+  "main": "main.js",
+  "author": "GloryCast",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "test": "node tests/engine.test.js",
+    "dist:win": "electron-builder --win nsis --x64 --publish never",
+    "dist:mac": "electron-builder --mac zip --x64 --arm64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "com.glorycast.retouch",
+    "productName": "GloryCast Retouch",
+    "files": ["main.js", "preload.js", "src/**/*", "build/icon.png"],
+    "directories": { "output": "dist" },
+    "win": { "target": "nsis", "icon": "build/icon.png", "artifactName": "GloryCast-Retouch-Setup-${version}.${ext}" },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true, "shortcutName": "GloryCast Retouch" },
+    "mac": { "target": "zip", "icon": "build/icon.png", "category": "public.app-category.photography", "identity": null, "artifactName": "GloryCast-Retouch-Mac-${arch}-${version}.${ext}" }
+  }
+}

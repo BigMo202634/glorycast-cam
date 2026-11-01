@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; worker-src 'self'">
+<title>GloryCast Retouch</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><span class="mark">◉</span> GloryCast <b>Retouch</b> <small id="ver"></small></div>
+  <div class="actions">
+    <button id="add" class="primary">+ Add photos</button>
+    <button id="clear">Clear</button>
+  </div>
+</header>
+
+<main>
+  <aside id="list">
+    <div id="empty" class="empty">
+      <p><b>Drop a folder of service photos here</b></p>
+      <p>or click <b>+ Add photos</b>.</p>
+      <p class="hint">Each photo is checked on its own: white garments, faces and skin. Your sliders apply to all.</p>
+    </div>
+    <div id="grid"></div>
+  </aside>
+
+  <section id="view">
+    <div id="stage">
+      <img id="after" alt="">
+      <div id="beforeWrap"><img id="before" alt=""></div>
+      <div id="split"><span></span></div>
+      <div id="busy" hidden>Working…</div>
+    </div>
+    <div class="viewbar">
+      <label><input type="checkbox" id="compare" checked> Before | After slider</label>
+      <span id="info"></span>
+      <label><input type="checkbox" id="skipOne"> Leave this photo out of export</label>
+    </div>
+  </section>
+
+  <aside id="panel">
+    <h3>Look</h3>
+    <div class="presets" id="presets"></div>
+
+    <h3>Fix</h3>
+    <div id="sliders"></div>
+    <button id="reset" class="link">Back to GloryCast Auto</button>
+
+    <h3>Shape</h3>
+    <select id="crop"></select>
+
+    <h3>Logo</h3>
+    <label class="row"><input type="checkbox" id="wmOn"> Put my logo on photos</label>
+    <div class="row"><button id="pickLogo">Choose logo…</button> <span id="logoName" class="muted">none</span></div>
+    <div class="row">
+      <select id="wmPos">
+        <option value="bottom-right">Bottom right</option>
+        <option value="bottom-left">Bottom left</option>
+        <option value="bottom-center">Bottom centre</option>
+        <option value="top-right">Top right</option>
+        <option value="top-left">Top left</option>
+      </select>
+    </div>
+    <label class="slider"><span>Logo size <i id="wmSizeV"></i></span><input type="range" id="wmSize" min="5" max="40"></label>
+    <label class="slider"><span>Logo see-through <i id="wmOpV"></i></span><input type="range" id="wmOp" min="20" max="100"></label>
+
+    <h3>Export</h3>
+    <div class="row">
+      <select id="maxSide">
+        <option value="0">Full size</option>
+        <option value="4096">Max 4096 px</option>
+        <option value="2048" selected>Max 2048 px (WhatsApp / Facebook)</option>
+        <option value="1600">Max 1600 px</option>
+      </select>
+    </div>
+    <label class="slider"><span>JPEG quality <i id="qV"></i></span><input type="range" id="quality" min="70" max="100"></label>
+    <button id="export" class="primary wide">Export all photos</button>
+    <div id="progress" hidden><div class="bar"><i></i></div><span></span></div>
+  </aside>
+</main>
+
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

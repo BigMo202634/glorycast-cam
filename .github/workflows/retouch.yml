@@ -1,0 +1,77 @@
+name: Retouch desktop app
+
+on:
+  push:
+    branches: [main, claude/project-thread-35poox]
+    paths:
+      - "retouch/**"
+      - ".github/workflows/retouch.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: retouch-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            script: dist:win
+            branch: retouch-windows
+          - os: macos-latest
+            script: dist:mac
+            branch: retouch-mac
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+        working-directory: retouch
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Engine checks
+        run: npm test
+
+      - name: Build the app
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm run ${{ matrix.script }}
+
+      - name: Collect
+        run: |
+          mkdir -p ../out
+          cp dist/*.exe dist/*.zip ../out/ 2>/dev/null || true
+          rm -f ../out/*.blockmap
+          ls -la ../out
+          test -n "$(ls ../out)"
+          {
+            echo "version=$(node -p "require('./package.json').version")"
+            echo "build=${GITHUB_RUN_NUMBER}"
+            echo "commit=${GITHUB_SHA}"
+            echo "built=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } > ../out/version.txt
+
+      - name: Put the build on its own branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: out
+        run: |
+          git init -q -b ${{ matrix.branch }}
+          git add .
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Retouch build ${GITHUB_RUN_NUMBER} from ${GITHUB_SHA::7}"
+          git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" ${{ matrix.branch }}
