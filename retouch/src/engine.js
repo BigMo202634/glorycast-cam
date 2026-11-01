@@ -15,7 +15,8 @@
   const LOOK = {
     garmentLum: 0.83,   // white cloth sits here in the good sets, not at 1.0
     skinY: 0.46,        // median face/skin brightness in the good sets
-    knee: 0.86,         // highlights above this are rolled off, so cloth keeps folds
+    knee: 0.86,
+    coolKeep: 0.035,    // how much blue in white cloth we leave alone         // highlights above this are rolled off, so cloth keeps folds
   };
 
   const DEFAULTS = {
@@ -93,10 +94,15 @@
     if (g) {
       const k = s.colour / 100;
       const m = (g.r + g.g + g.b) / 3;
-      gain = [m / g.r, m / g.g, m / g.b].map((v) => 1 + k * (v - 1));
+      // a slightly cool (blue) white is a look people like, not a fault: keep a little of it
+      const cool = Math.max(0, Math.min(LOOK.coolKeep, ((g.b - m) - (g.r - m)) / 2));
+      const want = [m - cool, m, m + cool];
+      gain = [want[0] / g.r, want[1] / g.g, want[2] / g.b].map((v) => 1 + k * (v - 1));
       const target = LOOK.garmentLum;
-      const want = Math.min(1.6, Math.max(0.8, target / g.lum));
-      expo = 1 + (s.exposure / 100) * (want - 1);
+      let lift = Math.min(1.6, Math.max(0.8, target / g.lum));
+      // bright, clean white is fine: only pull down whites that are really burnt
+      if (lift < 1) lift = g.lum > 0.9 ? Math.max(lift, 0.9 / g.lum * (target / 0.9)) : 1;
+      expo = 1 + (s.exposure / 100) * (lift - 1);
     }
     // personal taste on top
     const warm = s.warmth / 100 * 0.12;
