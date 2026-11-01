@@ -51,6 +51,23 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: npm run ${{ matrix.script }}
 
+      - name: Self-test the built app (opens it, adds photos, exports)
+        timeout-minutes: 5
+        run: |
+          T="$RUNNER_TEMP/selftest"; rm -rf "$T"; mkdir -p "$T"; cp tests/samples/*.jpg "$T/"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            EXE="dist/win-unpacked/GloryCast Retouch.exe"
+            T_WIN=$(cygpath -w "$T")
+            GCR_SELFTEST="$T_WIN" "$EXE" || code=$?
+          else
+            EXE=$(ls -d dist/mac-arm64/*.app 2>/dev/null || ls -d dist/mac/*.app | head -1)
+            GCR_SELFTEST="$T" "$EXE/Contents/MacOS/GloryCast Retouch" || code=$?
+          fi
+          cat "$T/selftest.log" || true
+          mkdir -p ../out
+          cp "$T/selftest-screen.png" "../out/selftest-screen-$RUNNER_OS.png" 2>/dev/null || true
+          grep -q '^PASS' "$T/selftest.log"
+
       - name: Collect
         run: |
           mkdir -p ../out

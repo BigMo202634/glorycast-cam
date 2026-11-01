@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('gcr', {
   pickPhotos: () => ipcRenderer.invoke('pick-photos'),
+  pickFolder: () => ipcRenderer.invoke('pick-folder'),
   expandPaths: (paths) => ipcRenderer.invoke('expand-paths', paths),
   pathForFile: (file) => (webUtils && webUtils.getPathForFile ? webUtils.getPathForFile(file) : file.path),
   pickLogo: () => ipcRenderer.invoke('pick-logo'),

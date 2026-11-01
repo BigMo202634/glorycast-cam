@@ -181,7 +181,8 @@
         const tag = p.el.querySelector('.tag');
         tag.textContent = describe(r.stats).short;
         tag.classList.toggle('warn', describe(r.stats).warn);
-      } catch {
+      } catch (err) {
+        console.error(p.name, err);
         p.el.querySelector('.tag').textContent = 'cannot open';
         p.skip = true; p.el.classList.add('skip');
       }
@@ -268,7 +269,18 @@
   });
 
   // ---------- add / drop ----------
-  $('add').onclick = async () => { if (api) addPaths(await api.pickPhotos()); };
+  $('add').onclick = async () => {
+    try { if (api) addPhotos((await api.pickPhotos()).map((p) => ({ path: p, name: p.split(/[\\/]/).pop() }))); }
+    catch (err) { showError('Could not add photos', err); }
+  };
+  $('addFolder').onclick = async () => {
+    try {
+      if (!api) return;
+      const files = await api.pickFolder();
+      if (!files.length) { $('info').textContent = 'No JPG, PNG or WEBP photos found in that folder.'; return; }
+      addPhotos(files.map((p) => ({ path: p, name: p.split(/[\\/]/).pop() })));
+    } catch (err) { showError('Could not add folder', err); }
+  };
   $('clear').onclick = () => {
     if (state.exporting) return;
     state.photos = []; state.current = -1; $('grid').innerHTML = ''; $('empty').hidden = false;
@@ -298,6 +310,10 @@
     const suggested = first ? first.path.replace(/[\\/][^\\/]+$/, '') : undefined;
     const out = await api.pickOutput(suggested);
     if (!out) return;
+    await exportAll(out);
+  };
+
+  async function exportAll(out) {
     const todo = state.photos.filter((p) => !p.skip);
     state.exporting = true; updateExportButton();
     $('progress').hidden = false;
@@ -325,12 +341,21 @@
       `${state.exporting ? 'Done' : 'Stopped'}: ${ok} saved${failed ? `, ${failed} failed` : ''} in ${secs}s. <button class="link" id="openOut">Open folder</button>`;
     $('openOut').onclick = () => api.openFolder(out);
     state.exporting = false; updateExportButton();
-  };
+    return { ok, failed };
+  }
+
+  function showError(what, err) {
+    $('info').textContent = `${what}: ${err && err.message || err}`;
+    console.error(what, err);
+  }
+  window.addEventListener('error', (e) => showError('Problem', e.message));
+  window.addEventListener('unhandledrejection', (e) => showError('Problem', e.reason));
+  worker.onerror = thumbWorker.onerror = (e) => showError('Photo engine did not start', e.message || 'worker error');
 
   // ---------- start ----------
   buildPanel();
   loadLogo();
   if (api) api.version().then((v) => { $('ver').textContent = 'v' + v; });
   window.addEventListener('resize', () => changed());
-  window.__gcr = { state, addPhotos, select, preview }; // for tests
+  window.__gcr = { state, addPhotos, select, preview, exportAll }; // for tests
 })();
