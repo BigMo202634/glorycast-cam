@@ -101,7 +101,7 @@
       const target = LOOK.garmentLum;
       let lift = Math.min(1.6, Math.max(0.8, target / g.lum));
       // bright, clean white is fine: only pull down whites that are really burnt
-      if (lift < 1) lift = g.lum > 0.9 ? Math.max(lift, 0.9 / g.lum * (target / 0.9)) : 1;
+      if (lift < 1 && g.lum <= 0.9) lift = 1;
       expo = 1 + (s.exposure / 100) * (lift - 1);
     }
     // personal taste on top
