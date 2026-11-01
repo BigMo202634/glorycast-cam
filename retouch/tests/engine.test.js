@@ -31,7 +31,7 @@ ok(f[0] + f[1] + f[2] > 92 + 60 + 45, `face is brighter after fix (${f})`);
 
 // sliders at zero must leave the photo alone
 const z = img(W, H, scene), z0 = z.slice();
-const zero = { colour: 0, exposure: 0, highlights: 0, face: 0, skin: 0, iron: 0, warmth: 0, vibrance: 0, brightness: 0 };
+const zero = { colour: 0, exposure: 0, highlights: 0, face: 0, skin: 0, blemish: 0, iron: 0, vibrance: 0 };
 E.apply(z, W, H, E.plan(E.analyse(z, W, H), zero));
 let maxd = 0; for (let i = 0; i < z.length; i++) maxd = Math.max(maxd, Math.abs(z[i] - z0[i]));
 ok(maxd <= 1, `all sliders at 0 changes nothing (max diff ${maxd})`);
@@ -44,13 +44,30 @@ const cloth = (x) => {
   if (x >= 800 && x < 804) v -= 70;                       // sharp pleat line
   return [v, v, v];
 };
-const c = img(cw, chh, (x) => cloth(x));
-const before = (x) => c[(100 * cw + x) * 4];
+const cl = img(cw, chh, (x) => cloth(x));
+const before = (x) => cl[(100 * cw + x) * 4];
 const crease0 = before(400), pleat0 = before(802);
-E.apply(c, cw, chh, E.plan(E.analyse(c, cw, chh), Object.assign({}, zero, { iron: 100 })));
-const after = (x) => c[(100 * cw + x) * 4];
+E.apply(cl, cw, chh, E.plan(E.analyse(cl, cw, chh), Object.assign({}, zero, { iron: 100 })));
+const after = (x) => cl[(100 * cw + x) * 4];
 ok(after(400) > crease0 + 4, `crease lifted ${crease0} -> ${after(400)}`);
 ok(after(802) < pleat0 + 12, `pleat kept ${pleat0} -> ${after(802)}`);
+
+// manual tools
+const grey = () => img(100, 100, (x) => [x < 50 ? 60 : 180, x < 50 ? 60 : 180, x < 50 ? 60 : 180]);
+const run = (st) => { const d2 = grey(); E.apply(d2, 100, 100, E.plan(E.analyse(d2, 100, 100), Object.assign({}, zero, st))); return [d2[(50 * 100 + 10) * 4], d2[(50 * 100 + 90) * 4]]; };
+const base = run({});
+ok(run({ ev: 50 })[0] > base[0] + 30, 'exposure +1 stop brightens');
+const c = run({ contrast: 80 }); ok(c[0] < base[0] && c[1] > base[1], `contrast spreads tones ${base} -> ${c}`);
+ok(run({ shadows: 80 })[0] > base[0] + 5 && Math.abs(run({ shadows: 80 })[1] - base[1]) < 15, 'shadows lifts darks more than lights');
+ok(run({ blacks: -80 })[0] < base[0], 'blacks deepens darks');
+const wt = (() => { const d2 = grey(); E.apply(d2, 100, 100, E.plan(E.analyse(d2, 100, 100), Object.assign({}, zero, { temp: 60 }))); const i = (50 * 100 + 90) * 4; return d2[i] - d2[i + 2]; })();
+ok(wt > 10, 'warm temp makes red > blue');
+
+// blemish: dark spot on skin gets lifted
+const sk = img(400, 400, (x, y) => ((x - 200) ** 2 + (y - 200) ** 2 < 9 ? [152, 97, 75] : [170, 110, 85]));
+const spot0 = sk[(200 * 400 + 200) * 4];
+E.apply(sk, 400, 400, E.plan(E.analyse(sk, 400, 400), Object.assign({}, zero, { blemish: 100 })));
+ok(sk[(200 * 400 + 200) * 4] > spot0 + 6, `blemish lifted ${spot0} -> ${sk[(200 * 400 + 200) * 4]}`);
 
 // crops stay inside the photo
 for (const [k, cr] of Object.entries(E.CROPS)) {

@@ -1,7 +1,7 @@
 {
   "name": "glorycast-retouch",
   "productName": "GloryCast Retouch",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Batch photo fixing for church photographers: white garments, faces, skin, crops and logo.",
   "main": "main.js",
   "author": "GloryCast",

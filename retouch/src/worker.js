@@ -74,11 +74,11 @@ self.onmessage = async (e) => {
       const bmp = await decode(m.bytes, m.maxSide || 1600);
       const stats = m.stats || measure(bmp);
       const after = render(bmp, stats, m.settings, { crop: m.crop, watermark: m.watermark });
-      const before = render(bmp, stats, m.settings, { crop: m.crop, before: true });
+      const before = m.noBefore ? null : render(bmp, stats, m.settings, { crop: m.crop, before: true });
       bmp.close();
       const [a, b] = await Promise.all([
         after.convertToBlob({ type: 'image/jpeg', quality: 0.9 }),
-        before.convertToBlob({ type: 'image/jpeg', quality: 0.9 }),
+        before ? before.convertToBlob({ type: 'image/jpeg', quality: 0.9 }) : null,
       ]);
       self.postMessage({ id: m.id, ok: true, after: a, before: b, stats });
     } else if (m.type === 'export') {

@@ -19,17 +19,32 @@
     coolKeep: 0.035,    // how much blue in white cloth we leave alone         // highlights above this are rolled off, so cloth keeps folds
   };
 
+  // AI (automatic, measured per photo) + manual sliders. Every key at 0 = untouched,
+  // except the AI ones which start at gentle defaults.
   const DEFAULTS = {
-    colour: 70,      // 0..100 how much of the white-garment colour cast to remove
-    exposure: 60,    // 0..100 how much to move white cloth toward the target brightness
-    highlights: 60,  // 0..100 roll-off of burnt whites
-    face: 50,        // 0..100 lift dark faces
-    skin: 35,        // 0..100 skin smoothing
-    iron: 30,        // 0..100 smooth creases on white cloth, keep pleats and seams
-    warmth: 0,       // -50..50 final warm(+)/cool(-) taste
-    vibrance: 10,    // -50..50
-    brightness: 0,   // -50..50 manual nudge
+    // AI: white garments and light
+    colour: 70,      // 0..100 remove colour cast measured on white garments
+    exposure: 60,    // 0..100 bring white cloth to a clean bright level
+    highlights: 60,  // 0..100 roll off burnt whites so folds come back
+    // AI: people
+    face: 50,        // 0..100 lift faces that are dark next to white cloth
+    skin: 35,        // 0..100 smooth skin, keep texture
+    blemish: 25,     // 0..100 lighten small dark spots on skin
+    iron: 30,        // 0..100 smooth creases on white cloth, keep pleats
+    // manual
+    temp: 0,         // -100..100 cool .. warm
+    tint: 0,         // -100..100 green .. magenta
+    ev: 0,           // -100..100 exposure, 100 = +2 stops
+    contrast: 0,     // -100..100
+    hiTone: 0,       // -100..100 highlights
+    shadows: 0,      // -100..100
+    whites: 0,       // -100..100
+    blacks: 0,       // -100..100
+    vibrance: 10,    // -100..100
+    saturation: 0,   // -100..100
+    sharpen: 0,      // 0..100
   };
+
 
   const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
@@ -104,10 +119,10 @@
       if (lift < 1 && g.lum <= 0.9) lift = 1;
       expo = 1 + (s.exposure / 100) * (lift - 1);
     }
-    // personal taste on top
-    const warm = s.warmth / 100 * 0.12;
-    gain = [gain[0] * (1 + warm), gain[1], gain[2] * (1 - warm)];
-    expo *= 1 + s.brightness / 100 * 0.5;
+    // manual white balance and exposure on top of the AI fix
+    const t = (s.temp || 0) / 100 * 0.25, ti = (s.tint || 0) / 100 * 0.15;
+    gain = [gain[0] * (1 + t), gain[1] * (1 - ti), gain[2] * (1 - t)];
+    expo *= Math.pow(2, (s.ev || 0) / 50);
 
     let lift = 0;
     if (stats.skinY != null && stats.skinShare > 0.002) {
@@ -121,8 +136,25 @@
       smooth: s.skin / 100,
       iron: s.iron / 100,
       vibrance: s.vibrance / 100,
+      saturation: (s.saturation || 0) / 100,
+      blemish: (s.blemish || 0) / 100,
+      sharpen: (s.sharpen || 0) / 100,
+      tone: {
+        contrast: (s.contrast || 0) / 100, hi: (s.hiTone || 0) / 100, sh: (s.shadows || 0) / 100,
+        b0: -(s.blacks || 0) / 100 * 0.12, w0: 1 - (s.whites || 0) / 100 * 0.12,
+      },
     };
   }
+
+  // Manual tone curve on brightness (0..1). Returns the new brightness.
+  function toneY(y, t) {
+    y = (y - t.b0) / (t.w0 - t.b0);
+    if (t.sh) y += t.sh * 0.35 * y * (1 - y) * (1 - y) * 2;
+    if (t.hi) y += t.hi * 0.35 * y * y * (1 - y) * 2.5;
+    if (t.contrast) y += t.contrast * 0.5 * (y - 0.5) * (1 - Math.min(1, Math.abs(2 * y - 1)) * 0.6);
+    return y;
+  }
+  const toneOn = (t) => t.contrast || t.hi || t.sh || t.b0 || t.w0 !== 1;
 
   // Smooth roll-off above the knee: slope 1 at the knee, never passes 1.
   function rolloff(v, knee) {
@@ -184,6 +216,41 @@
     }
   }
 
+  /** Small dark spots on skin (pimples, marks) are lifted toward the skin around them.
+   * Big dark areas (eyes, brows, nostrils, beard) are left alone. */
+  function removeBlemishes(f, skin, w, h, amount) {
+    const n = w * h;
+    const r = Math.max(2, Math.round(Math.min(w, h) / 100));
+    const m3 = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) m3[i * 3] = m3[i * 3 + 1] = m3[i * 3 + 2] = skin[i];
+    const mb = boxBlur(m3, w, h, r * 2);
+    const bl = boxBlur(f, w, h, r);
+    for (let i = 0; i < n; i++) {
+      const m = mb[i * 3];
+      if (m < 0.75 || skin[i] < 0.4) continue;  // only well inside skin, never on hair
+      const k = i * 3;
+      const y = 0.299 * f[k] + 0.587 * f[k + 1] + 0.114 * f[k + 2];
+      const yb = 0.299 * bl[k] + 0.587 * bl[k + 1] + 0.114 * bl[k + 2];
+      const d = yb - y;                    // how much darker than the skin around
+      // small marks are a little darker; brows, lashes and lines are much darker: fade out
+      const wgt = d < 0.012 ? 0 : d < 0.04 ? (d - 0.012) / 0.028 : d < 0.09 ? 1 - (d - 0.04) / 0.05 : 0;
+      if (wgt <= 0) continue;
+      const a = amount * wgt * (m - 0.75) / 0.25;
+      for (let c = 0; c < 3; c++) f[k + c] += (bl[k + c] - f[k + c]) * a;
+    }
+  }
+
+  /** Gentle sharpening on brightness only (no colour fringes). */
+  function sharpenY(f, w, h, amount) {
+    const bl = boxBlur(f, w, h, Math.max(1, Math.round(Math.min(w, h) / 1500)));
+    const n = w * h;
+    for (let i = 0; i < n; i++) {
+      const k = i * 3;
+      const d = (0.299 * (f[k] - bl[k]) + 0.587 * (f[k + 1] - bl[k + 1]) + 0.114 * (f[k + 2] - bl[k + 2])) * amount * 1.5;
+      f[k] += d; f[k + 1] += d; f[k + 2] += d;
+    }
+  }
+
   /** Apply the plan to RGBA pixels, in place. */
   function apply(data, w, h, p) {
     const n = w * h;
@@ -191,6 +258,7 @@
     const skin = new Float32Array(n);
     const cloth = new Float32Array(n);
     const [kr, kg, kb] = p.gain.map((v) => v * p.expo);
+    const tone = p.tone && toneOn(p.tone);
     for (let i = 0, j = 0; i < n; i++, j += 4) {
       let r = data[j] / 255 * kr, g = data[j + 1] / 255 * kg, b = data[j + 2] / 255 * kb;
       // roll off burnt whites per pixel, keeping hue (scale by the brightest channel)
@@ -199,6 +267,13 @@
         const t = rolloff(mx, p.knee) / mx;
         const s = 1 + (t - 1) * p.hl;
         r *= s; g *= s; b *= s;
+      }
+      if (tone) {
+        const y = 0.299 * r + 0.587 * g + 0.114 * b;
+        if (y > 0.0005) {
+          const k = Math.max(0, toneY(y, p.tone)) / y;
+          r *= k; g *= k; b *= k;
+        } else { const y2 = Math.max(0, toneY(0, p.tone)); r += y2; g += y2; b += y2; }
       }
       r = clamp01(r); g = clamp01(g); b = clamp01(b);
       const sw = skinWeight(r, g, b);
@@ -210,6 +285,10 @@
         r += (1 - r) * a; g += (1 - g) * a; b += (1 - b) * a;
       }
       // vibrance: push weak colours more than strong ones, never skin much
+      if (p.saturation) {
+        const m = (r + g + b) / 3;
+        r = m + (r - m) * (1 + p.saturation); g = m + (g - m) * (1 + p.saturation); b = m + (b - m) * (1 + p.saturation);
+      }
       if (p.vibrance !== 0) {
         const m = (r + g + b) / 3, sat = Math.max(r, g, b) - Math.min(r, g, b);
         const v = p.vibrance * (1 - sat) * (1 - 0.7 * sw);
@@ -224,7 +303,7 @@
     if (p.iron > 0) ironCloth(f, cloth, w, h, p.iron);
 
     if (p.smooth > 0) {
-      const r = Math.max(1, Math.round(Math.min(w, h) / 450));
+      const r = Math.max(1, Math.round(Math.min(w, h) / 300));
       // soften the mask so smoothing has no hard edges
       const m3 = new Float32Array(n * 3);
       for (let i = 0; i < n; i++) m3[i * 3] = m3[i * 3 + 1] = m3[i * 3 + 2] = skin[i];
@@ -237,11 +316,14 @@
         const y0 = 0.299 * f[k] + 0.587 * f[k + 1] + 0.114 * f[k + 2];
         const y1 = 0.299 * bl[k] + 0.587 * bl[k + 1] + 0.114 * bl[k + 2];
         // big differences are eyes, lips, beard edges: keep them sharp
-        const guard = Math.max(0, 1 - Math.abs(y1 - y0) / 0.06);
-        const a = p.smooth * 0.85 * m * guard;
+        const guard = Math.max(0, 1 - Math.abs(y1 - y0) / 0.09);
+        const a = p.smooth * 0.95 * m * guard;
         f[k] += (bl[k] - f[k]) * a; f[k + 1] += (bl[k + 1] - f[k + 1]) * a; f[k + 2] += (bl[k + 2] - f[k + 2]) * a;
       }
     }
+
+    if (p.blemish > 0) removeBlemishes(f, skin, w, h, p.blemish);
+    if (p.sharpen > 0) sharpenY(f, w, h, p.sharpen);
 
     for (let i = 0, j = 0; i < n; i++, j += 4) {
       data[j] = clamp01(f[i * 3]) * 255 + 0.5;

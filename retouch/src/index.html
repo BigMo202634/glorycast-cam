@@ -10,76 +10,145 @@
 <header>
   <div class="brand"><span class="mark">◉</span> GloryCast <b>Retouch</b> <small id="ver"></small></div>
   <div class="actions">
-    <button id="add" class="primary">+ Add photos</button>
-    <button id="addFolder" class="primary">+ Add folder</button>
-    <button id="clear">Clear</button>
+    <button id="add">+ Add photos</button>
+    <button id="addFolder">+ Add folder</button>
+    <button id="clear" title="Remove all photos from the app (files are not deleted)">Clear</button>
+    <button id="exportBtn" class="primary">Export…</button>
   </div>
 </header>
 
 <main>
-  <aside id="list">
-    <div id="empty" class="empty">
-      <p><b>Drop a folder of service photos here</b></p>
-      <p>or click <b>+ Add photos</b> (pick one or many) or <b>+ Add folder</b> (a whole service).</p>
-      <p class="hint">Each photo is checked on its own: white garments, faces and skin. Your sliders apply to all.</p>
-    </div>
-    <div id="grid"></div>
+  <!-- LEFT: presets and history -->
+  <aside id="left">
+    <section>
+      <h3>Presets <button id="savePreset" class="mini" title="Save this photo's settings as your own preset">+ Save</button></h3>
+      <div id="presetList" class="list"></div>
+    </section>
+    <section>
+      <h3>History <button id="undo" class="mini" title="Undo (Ctrl+Z)">↶</button><button id="redo" class="mini" title="Redo (Ctrl+Shift+Z)">↷</button></h3>
+      <div id="historyList" class="list small"></div>
+    </section>
   </aside>
 
+  <!-- CENTRE: viewer -->
   <section id="view">
     <div id="stage">
-      <img id="after" alt="">
-      <div id="beforeWrap"><img id="before" alt=""></div>
-      <div id="split"><span></span></div>
+      <div id="empty" class="empty">
+        <p><b>Drop photos or a folder here</b></p>
+        <p>or use <b>+ Add photos</b> / <b>+ Add folder</b> at the top.</p>
+        <p class="hint">AI checks each photo on its own. Then fine-tune by hand, and sync your edit to other photos.</p>
+      </div>
+      <div id="canvas">
+        <img id="after" alt="">
+        <div id="beforeWrap"><img id="before" alt=""></div>
+        <div id="split"><span></span></div>
+      </div>
       <div id="busy" hidden>Working…</div>
     </div>
     <div class="viewbar">
-      <label><input type="checkbox" id="compare" checked> Before | After slider</label>
+      <div class="group">
+        <button id="cmpBtn" class="toggle on" title="Before | After slider (B)">Before | After</button>
+        <button id="zoomBtn" class="toggle" title="Fit or 100% (Z)">Fit</button>
+      </div>
       <span id="info"></span>
-      <label><input type="checkbox" id="skipOne"> Leave this photo out of export</label>
+      <div class="group">
+        <button id="pickBtn" class="toggle" title="Pick (P)">✓ Pick</button>
+        <button id="rejectBtn" class="toggle" title="Reject (X)">✕ Reject</button>
+      </div>
     </div>
+    <div id="stripBar">
+      <div class="group">
+        <select id="filter">
+          <option value="all">All photos</option>
+          <option value="pick">Picked</option>
+          <option value="reject">Rejected</option>
+          <option value="edited">Edited by hand</option>
+          <option value="unflagged">Not picked yet</option>
+        </select>
+        <span id="count" class="muted"></span>
+      </div>
+      <div class="group">
+        <button id="selAll" class="mini" title="Select all (Ctrl+A)">Select all</button>
+        <button id="copyBtn" class="mini" title="Copy this photo's edit (Ctrl+C)">Copy edit</button>
+        <button id="pasteBtn" class="mini" title="Paste edit to selected photos (Ctrl+V)">Paste</button>
+        <button id="syncBtn" class="mini gold" title="Copy this photo's edit to every selected photo">Sync to selected</button>
+        <button id="syncAllBtn" class="mini" title="Copy this photo's edit to all photos">Sync to all</button>
+      </div>
+    </div>
+    <div id="strip"></div>
   </section>
 
+  <!-- RIGHT: tools -->
   <aside id="panel">
-    <h3>Look</h3>
-    <div class="presets" id="presets"></div>
-
-    <h3>Fix</h3>
-    <div id="sliders"></div>
-    <button id="reset" class="link">Back to GloryCast Auto</button>
-
-    <h3>Shape</h3>
-    <select id="crop"></select>
-
-    <h3>Logo</h3>
-    <label class="row"><input type="checkbox" id="wmOn"> Put my logo on photos</label>
-    <div class="row"><button id="pickLogo">Choose logo…</button> <span id="logoName" class="muted">none</span></div>
-    <div class="row">
-      <select id="wmPos">
-        <option value="bottom-right">Bottom right</option>
-        <option value="bottom-left">Bottom left</option>
-        <option value="bottom-center">Bottom centre</option>
-        <option value="top-right">Top right</option>
-        <option value="top-left">Top left</option>
-      </select>
+    <nav class="tabs">
+      <button data-tab="ai" class="on">AI Retouch</button>
+      <button data-tab="adjust">Adjust</button>
+      <button data-tab="crop">Crop &amp; Logo</button>
+    </nav>
+    <div id="tab-ai" class="tab"></div>
+    <div id="tab-adjust" class="tab" hidden></div>
+    <div id="tab-crop" class="tab" hidden>
+      <h3>Shape</h3>
+      <select id="crop"></select>
+      <p class="hint">Crops centre on the people in each photo.</p>
+      <h3>Logo</h3>
+      <label class="row"><input type="checkbox" id="wmOn"> Put my logo on photos</label>
+      <div class="row"><button id="pickLogo">Choose logo…</button> <span id="logoName" class="muted">none</span></div>
+      <div class="row">
+        <select id="wmPos">
+          <option value="bottom-right">Bottom right</option>
+          <option value="bottom-left">Bottom left</option>
+          <option value="bottom-center">Bottom centre</option>
+          <option value="top-right">Top right</option>
+          <option value="top-left">Top left</option>
+        </select>
+      </div>
+      <label class="slider"><span>Logo size <i id="wmSizeV"></i></span><input type="range" id="wmSize" min="5" max="40"></label>
+      <label class="slider"><span>Logo see-through <i id="wmOpV"></i></span><input type="range" id="wmOp" min="20" max="100"></label>
+      <p class="hint">Shape and logo are the same for every photo.</p>
     </div>
-    <label class="slider"><span>Logo size <i id="wmSizeV"></i></span><input type="range" id="wmSize" min="5" max="40"></label>
-    <label class="slider"><span>Logo see-through <i id="wmOpV"></i></span><input type="range" id="wmOp" min="20" max="100"></label>
+    <div class="panelFoot">
+      <button id="resetPhoto" class="link">Reset this photo</button>
+      <span class="muted" id="editScope"></span>
+    </div>
+  </aside>
+</main>
 
-    <h3>Export</h3>
+<!-- export dialog -->
+<div id="exportDlg" class="dlg" hidden>
+  <div class="box">
+    <h2>Export</h2>
+    <label class="row"><input type="radio" name="scope" value="all" checked> All photos except rejected <i id="nAll"></i></label>
+    <label class="row"><input type="radio" name="scope" value="pick"> Picked only <i id="nPick"></i></label>
+    <label class="row"><input type="radio" name="scope" value="sel"> Selected only <i id="nSel"></i></label>
     <div class="row">
       <select id="maxSide">
         <option value="0">Full size</option>
         <option value="4096">Max 4096 px</option>
-        <option value="2048" selected>Max 2048 px (WhatsApp / Facebook)</option>
+        <option value="2048">Max 2048 px (WhatsApp / Facebook)</option>
         <option value="1600">Max 1600 px</option>
       </select>
     </div>
     <label class="slider"><span>JPEG quality <i id="qV"></i></span><input type="range" id="quality" min="70" max="100"></label>
-    <button id="export" class="primary wide">Export all photos</button>
     <div id="progress" hidden><div class="bar"><i></i></div><span></span></div>
-  </aside>
-</main>
+    <div class="row end">
+      <button id="expCancel">Close</button>
+      <button id="expGo" class="primary">Choose folder and export</button>
+    </div>
+  </div>
+</div>
+
+<!-- save preset dialog -->
+<div id="presetDlg" class="dlg" hidden>
+  <div class="box">
+    <h2>Save preset</h2>
+    <input id="presetName" placeholder="e.g. Zion indoor, Lord's Day evening">
+    <div class="row end">
+      <button id="presetCancel">Cancel</button>
+      <button id="presetOk" class="primary">Save</button>
+    </div>
+  </div>
+</div>
 
 <script src="engine.js"></script>
 <script src="app.js"></script>

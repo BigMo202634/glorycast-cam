@@ -1,28 +1,29 @@
 # GloryCast Retouch
 
-Batch photo fixing for church photographers (Windows and Mac).
+AI + manual photo editor for church photographers (Windows and Mac).
 
-Drop in a whole service. Each photo is checked on its own, then fixed with one set of sliders:
+**Layout:** presets and history on the left, photo with Before | After slider in the middle,
+filmstrip at the bottom, tools on the right (AI Retouch, Adjust, Crop & Logo).
 
-- **Fix colour cast**: uses the white garments as a reference to remove green, yellow or pink light.
-- **Fix white brightness** and **Save burnt whites**: clean, bright white cloth that keeps its folds.
-- **Brighten faces**: lifts faces that go dark next to white cloth.
-- **Smooth skin**: evens skin, keeps eyes, lips and texture.
-- **Iron clothes**: softens creases on white cloth, keeps pleats and seams.
-- **Warm / cool**, **Colour strength**, **Overall brightness**.
-- Looks: GloryCast Auto, Clean & cool, Outdoor, Indoor tube lights, Night / stage, Gentle.
-- Shapes: original, IG post 4:5, square, story 9:16, YouTube 16:9, flyer A4.
-- Logo watermark (position, size, see-through), export size and JPEG quality.
+**AI Retouch** (measured on each photo on its own): fix colour cast from white garments,
+fix white brightness, save burnt whites, iron clothes, brighten faces, smooth skin, remove blemishes.
 
-Every slider at 0 leaves the photo untouched. Double-click a slider to reset it.
-Exports go to a folder you choose as `name-GC.jpg`; originals are never changed.
+**Adjust** (by hand): temperature, tint, exposure, contrast, highlights, shadows, whites, blacks,
+vibrance, saturation, sharpen.
+
+**Workflow:** every photo keeps its own edit. Edit one, then *Sync to selected* / *Sync to all*,
+or *Copy edit* and *Paste*. Presets (built-in and your own, *+ Save*) apply to the photo and any selected ones.
+History with undo/redo. Pick (P) / Reject (X), filter the filmstrip, zoom to 100% (Z or double-click).
+Edits are remembered per file, so closing the app keeps your work.
+Export all except rejected, picked only, or selected, as `name-GC.jpg`. Originals are never changed.
+
+Keys: arrows move, P pick, X reject, U unflag, B before/after, Z zoom, Ctrl+Z / Ctrl+Shift+Z,
+Ctrl+C / Ctrl+V edits, Ctrl+A select all. Double-click a slider to reset it.
 
 Everything runs on the computer. No internet, no cost per photo.
 
 ## Build
 
-`npm install`, `npm start` to run, `npm test` for engine checks.
-The workflow `.github/workflows/retouch.yml` builds the Windows installer and the Mac app
-(Intel and Apple silicon) and puts them on branches `retouch-windows` and `retouch-mac`.
-
-The Mac app is not signed yet: first time, right-click the app and choose Open.
+`npm install`, `npm start`, `npm test`. The workflow `.github/workflows/retouch.yml` builds the
+Windows installer and Mac apps, opens the packaged app to add, preview and export sample photos,
+and only then puts the builds on branches `retouch-windows` and `retouch-mac`.
